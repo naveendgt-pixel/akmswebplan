@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
-import { workflowStages } from "@/lib/constants";
+import { workflowStages, formatDate } from "@/lib/constants";
 
 interface Order {
   id: string;
@@ -13,6 +13,7 @@ interface Order {
   event_date: string | null;
   event_city: string | null;
   total_amount: number;
+  final_budget: number | null;
   status: string;
   payment_status: string;
   delivery_status: string;
@@ -93,9 +94,9 @@ export default function OrdersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 xs:gap-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1 xs:flex-row xs:items-center xs:justify-between">
         <div>
           <p className="text-sm font-medium text-[var(--muted-foreground)]">Orders</p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Workflow Tracking</h2>
@@ -103,14 +104,14 @@ export default function OrdersPage() {
       </div>
 
       {/* Info Banner */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 xs:p-4 text-sm text-blue-700">
         <strong>ℹ️ How Orders Work:</strong> Orders are automatically created when a quotation is <strong>Confirmed</strong>. 
         Pending or Declined quotations do not create orders.
       </div>
 
       {/* Search & Filters */}
       <SectionCard title="Search & Filters" description="Find orders quickly">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 xs:gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             placeholder="Order ID"
             value={searchId}
@@ -124,7 +125,7 @@ export default function OrdersPage() {
             className="h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
           />
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {["All", "Confirmed", "In Progress", "Completed", "Cancelled"].map((f) => (
             <button
               key={f}
@@ -167,7 +168,7 @@ export default function OrdersPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 xs:space-y-4">
             {filteredOrders.map((order) => {
               // Parse workflow status
               const workflowData: Record<string, string> = (() => {
@@ -183,33 +184,33 @@ export default function OrdersPage() {
               return (
                 <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
                   {/* Order Info Row */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-b border-[var(--border)]">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-col xs:flex-row flex-wrap items-start xs:items-center justify-between gap-2 xs:gap-4 px-2 xs:px-4 py-2 xs:py-3 border-b border-[var(--border)]">
+                    <div className="flex items-center gap-2 xs:gap-4 min-w-0">
                       <Link
                         href={`/orders/${order.id}`}
-                        className="font-semibold text-[var(--primary)] hover:underline"
+                        className="font-semibold text-[var(--primary)] hover:underline truncate"
                       >
                         {order.order_number}
                       </Link>
-                      <div>
-                        <p className="font-medium text-[var(--foreground)]">{order.customers?.[0]?.name || "—"}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">{order.customers?.[0]?.phone || ""}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--foreground)] truncate">{order.customers?.[0]?.name || "—"}</p>
+                        <p className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.phone || ""}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
+                    <div className="flex flex-col xs:flex-row items-end xs:items-center gap-2 xs:gap-4">
+                      <div className="text-right min-w-[80px]">
                         <p className="text-[var(--foreground)]">{order.event_type}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">{order.event_date || "—"}</p>
+                        <p className="text-xs text-[var(--muted-foreground)]">{formatDate(order.event_date)}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-[var(--foreground)]">₹{(order.total_amount || 0).toLocaleString()}</p>
+                      <div className="text-right min-w-[100px]">
+                        <p className="font-bold text-[var(--primary)]">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</p>
                         <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>
                           {order.payment_status}
                         </span>
                       </div>
                       <Link
                         href={`/orders/${order.id}`}
-                        className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)]"
+                        className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] whitespace-nowrap"
                       >
                         View
                       </Link>
@@ -217,8 +218,8 @@ export default function OrdersPage() {
                   </div>
                   
                   {/* Workflow Status - Prominent Section */}
-                  <div className={`px-4 py-4 ${allCompleted ? "bg-gradient-to-r from-[var(--success)]/10 to-[var(--success)]/5 border-t-2 border-[var(--success)]" : "bg-gradient-to-r from-[var(--primary)]/10 to-[var(--accent)]/10 border-t-2 border-[var(--primary)]"}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div className={`px-2 xs:px-4 py-3 xs:py-4 ${allCompleted ? "bg-gradient-to-r from-[var(--success)]/10 to-[var(--success)]/5 border-t-2 border-[var(--success)]" : "bg-gradient-to-r from-[var(--primary)]/10 to-[var(--accent)]/10 border-t-2 border-[var(--primary)]"}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 xs:gap-3 mb-2 xs:mb-3">
                       <div className="flex items-center gap-2">
                         <span className={`text-lg ${allCompleted ? "text-[var(--success)]" : "text-[var(--primary)]"}`}>📋</span>
                         <span className={`text-sm font-bold ${allCompleted ? "text-[var(--success)]" : "text-[var(--primary)]"}`}>
@@ -237,7 +238,7 @@ export default function OrdersPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1 xs:gap-2">
                       {workflowStages.map((stage) => {
                         const status = workflowData[stage] || "No";
                         const isComplete = status === "Yes" || status === "Not Needed";
@@ -269,7 +270,7 @@ export default function OrdersPage() {
       </SectionCard>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 xs:gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Total Orders</p>
           <p className="text-2xl font-bold text-[var(--foreground)]">{orders.length}</p>

@@ -14,6 +14,7 @@ export default function AuthButton() {
     let mounted = true;
 
     const syncSession = async () => {
+      if (!supabase) return;
       const { data } = await supabase.auth.getSession();
       const sessionEmail = data.session?.user.email ?? null;
       if (!mounted) return;
@@ -34,7 +35,7 @@ export default function AuthButton() {
 
     return () => {
       mounted = false;
-      listener.subscription.unsubscribe();
+      listener?.subscription?.unsubscribe();
     };
   }, []);
 
@@ -57,7 +58,7 @@ export default function AuthButton() {
   // Show disabled state if Supabase is not configured
   if (!supabase) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-2 xs:px-3 py-2 text-xs font-medium text-amber-700">
         <span>⚠️</span>
         <span>Auth not configured</span>
       </div>
@@ -69,7 +70,7 @@ export default function AuthButton() {
       <button
         type="button"
         onClick={handleSignIn}
-        className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-sm transition-all duration-200 hover:bg-[var(--secondary)] hover:shadow-md"
+        className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 xs:px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm transition-all duration-200 hover:bg-[var(--secondary)] hover:shadow-md"
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -83,12 +84,12 @@ export default function AuthButton() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2 rounded-xl bg-[var(--secondary)] px-3 py-2">
+    <div className="flex items-center gap-2 xs:gap-3">
+      <div className="flex items-center gap-2 rounded-xl bg-[var(--secondary)] px-2 xs:px-3 py-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white">
           {email.charAt(0).toUpperCase()}
         </div>
-        <span className="hidden max-w-[140px] truncate text-sm font-medium text-[var(--foreground)] sm:inline">
+        <span className="hidden max-w-[100px] xs:max-w-[140px] truncate text-sm font-medium text-[var(--foreground)] sm:inline">
           {email}
         </span>
       </div>
@@ -100,7 +101,7 @@ export default function AuthButton() {
       <button
         type="button"
         onClick={handleSignOut}
-        className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] transition-all duration-200 hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+        className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 xs:px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] transition-all duration-200 hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
       >
         Sign out
       </button>

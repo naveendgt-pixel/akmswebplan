@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
+import { formatDate } from "@/lib/constants";
 
 interface Quotation {
   id: string;
@@ -40,6 +41,9 @@ export default function QuotationsListPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [quotationToDelete, setQuotationToDelete] = useState<Quotation | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
@@ -75,7 +79,13 @@ export default function QuotationsListPage() {
       if (error) {
         console.error("Error fetching quotations:", error);
       } else {
-        setQuotations(data || []);
+        // Fix: customers is returned as an array, but Quotation expects an object or null
+        setQuotations(
+          (data || []).map((q: any) => ({
+            ...q,
+            customers: Array.isArray(q.customers) ? (q.customers[0] || null) : q.customers ?? null,
+          }))
+        );
       }
     } catch (err) {
       console.error("Error:", err);
@@ -291,6 +301,46 @@ export default function QuotationsListPage() {
     }
   };
 
+  // Delete quotation
+  const handleDeleteClick = (quotation: Quotation) => {
+    setQuotationToDelete(quotation);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!supabase || !quotationToDelete) return;
+    
+    setDeletingId(quotationToDelete.id);
+    
+    try {
+      // First delete quotation items
+      const { error: itemsError } = await supabase
+        .from("quotation_items")
+        .delete()
+        .eq("quotation_id", quotationToDelete.id);
+      
+      if (itemsError) throw itemsError;
+      
+      // Then delete the quotation
+      const { error } = await supabase
+        .from("quotations")
+        .delete()
+        .eq("id", quotationToDelete.id);
+      
+      if (error) throw error;
+      
+      await fetchQuotations();
+      setShowDeleteModal(false);
+      setQuotationToDelete(null);
+      
+    } catch (error) {
+      console.error("Error deleting quotation:", error);
+      alert("Failed to delete quotation. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Generate PDF for quotation
   const generatePDF = async (quotation: Quotation) => {
     if (!supabase) return;
@@ -376,7 +426,7 @@ export default function QuotationsListPage() {
             <div class="info-box">
               <h3>Event Details</h3>
               <p class="highlight">${fullQuotation?.event_type || quotation.event_type}</p>
-              <p>📅 ${quotation.event_date ? new Date(quotation.event_date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "Date TBD"}</p>
+              <p>📅 ${formatDate(quotation.event_date)}</p>
               <p>📍 ${fullQuotation?.event_venue || "—"}, ${quotation.event_city || "—"}</p>
               <p>📦 Package: ${fullQuotation?.package_type || "Custom"}</p>
             </div>
@@ -476,9 +526,9 @@ export default function QuotationsListPage() {
   const inputClass = "h-10 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 xs:gap-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 xs:gap-4 xs:flex-row xs:items-center xs:justify-between">
         <div>
           <p className="text-sm font-medium text-[var(--muted-foreground)]">Sales Pipeline</p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Quotations</h2>
@@ -492,8 +542,8 @@ export default function QuotationsListPage() {
       </div>
 
       {/* Stats Overview - Clear Total Display */}
-      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-4 xs:p-6 text-white">
+        <div className="flex flex-col xs:flex-row flex-wrap items-center justify-between gap-2 xs:gap-4">
           <div>
             <p className="text-sm text-white/80">Total Quotations</p>
             <p className="text-4xl font-bold">{stats.total}</p>
@@ -531,7 +581,7 @@ export default function QuotationsListPage() {
 
       {/* Search & Filters */}
       <SectionCard title="Search & Filter" description="Find quotations quickly">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 xs:gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Search by Quotation ID</label>
             <input
@@ -590,7 +640,7 @@ export default function QuotationsListPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-[var(--border)]">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Quotation ID</th>
@@ -606,9 +656,12 @@ export default function QuotationsListPage() {
                 {filteredQuotations.map((quotation) => (
                   <tr key={quotation.id} className="hover:bg-[var(--secondary)]/50 transition-colors">
                     <td className="px-4 py-4">
-                      <span className="font-mono text-sm font-medium text-[var(--foreground)]">
+                      <Link
+                        href={`/quotation?editId=${quotation.id}`}
+                        className="font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                      >
                         {quotation.quotation_number}
-                      </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-4">
                       <div>
@@ -620,9 +673,7 @@ export default function QuotationsListPage() {
                       <div>
                         <p className="text-sm text-[var(--foreground)]">{quotation.event_type}</p>
                         <p className="text-xs text-[var(--muted-foreground)]">
-                          {quotation.event_date
-                            ? new Date(quotation.event_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                            : "Date TBD"}
+                          {formatDate(quotation.event_date)}
                           {quotation.event_city && ` • ${quotation.event_city}`}
                         </p>
                       </div>
@@ -651,74 +702,77 @@ export default function QuotationsListPage() {
                           ? "text-red-500"
                           : "text-[var(--muted-foreground)]"
                       }`}>
-                        {quotation.valid_until
-                          ? new Date(quotation.valid_until).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                          : "—"}
+                        {formatDate(quotation.valid_until)}
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-2 flex-wrap">
-                        {/* Edit Button - Always visible */}
+                      <div className="flex items-center justify-center gap-2">
+                        {/* Edit Button */}
                         <Link
                           href={`/quotation?editId=${quotation.id}`}
-                          className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition-colors"
+                          className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                         >
-                          ✏️ Edit
+                          Edit
                         </Link>
                         
                         {/* PDF Button */}
-                        <button
-                          onClick={() => generatePDF(quotation)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-purple-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-600 transition-colors"
+                        <Link
+                          href={`/quotations/${quotation.id}/pdf`}
+                          target="_blank"
+                          className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
                         >
-                          📄 PDF
-                        </button>
+                          PDF
+                        </Link>
+
+                        {/* View Order - Only for Confirmed */}
+                        {quotation.status === "Confirmed" && quotation.order_id && (
+                          <Link
+                            href={`/orders/${quotation.order_id}`}
+                            className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                          >
+                            Order
+                          </Link>
+                        )}
 
                         {/* Mark as Pending - Only for Draft */}
                         {quotation.status === "Draft" && (
                           <button
                             onClick={() => handleMarkAsPending(quotation)}
                             disabled={pendingId === quotation.id}
-                            className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+                            className="px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
                           >
-                            {pendingId === quotation.id ? (
-                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                            ) : (
-                              "⏳ Mark Pending"
-                            )}
+                            {pendingId === quotation.id ? "..." : "Pending"}
                           </button>
                         )}
                         
+                        {/* Confirm - Only for Draft/Pending */}
                         {(quotation.status === "Draft" || quotation.status === "Pending") && (
                           <>
                             <button
                               onClick={() => handleConfirm(quotation)}
                               disabled={confirmingId === quotation.id}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
                             >
-                              {confirmingId === quotation.id ? (
-                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                              ) : (
-                                "✓ Confirm"
-                              )}
+                              {confirmingId === quotation.id ? "..." : "Confirm"}
                             </button>
                             <button
                               onClick={() => handleDeclineClick(quotation)}
                               disabled={decliningId === quotation.id}
-                              className="inline-flex items-center gap-1 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
                             >
-                              ✕ Decline
+                              Decline
                             </button>
                           </>
                         )}
-                        {quotation.status === "Confirmed" && quotation.order_id && (
-                          <Link
-                            href={`/orders/${quotation.order_id}`}
-                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-600 transition-colors"
-                          >
-                            View Order
-                          </Link>
-                        )}
+                        
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => handleDeleteClick(quotation)}
+                          disabled={deletingId === quotation.id}
+                          className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === quotation.id ? "..." : "Delete"}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -765,6 +819,40 @@ export default function QuotationsListPage() {
                 className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-all disabled:opacity-50"
               >
                 {decliningId === selectedQuotation.id ? "Declining..." : "Decline Quotation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && quotationToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-red-600">⚠️ Delete Quotation</h3>
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              Are you sure you want to permanently delete quotation <span className="font-mono font-semibold">{quotationToDelete.quotation_number}</span>?
+            </p>
+            <p className="mt-2 text-sm text-red-500">
+              This action cannot be undone. All associated items will also be deleted.
+            </p>
+            
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setQuotationToDelete(null);
+                }}
+                className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deletingId === quotationToDelete.id}
+                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-all disabled:opacity-50"
+              >
+                {deletingId === quotationToDelete.id ? "Deleting..." : "Delete Quotation"}
               </button>
             </div>
           </div>

@@ -305,9 +305,9 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
   const additionalItems = items.filter(i => i.category === "Additional");
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 px-2 sm:px-4 md:px-8 max-w-6xl w-full mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <Link href="/quotations" className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
             ← Back to Quotations
@@ -317,7 +317,14 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
           </h2>
           <p className="text-sm font-mono text-indigo-500">{quotation.quotation_number}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 md:gap-3">
+          <Link
+            href={`/quotations/${resolvedParams.id}/pdf`}
+            target="_blank"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-medium text-purple-600 hover:bg-purple-100 transition-all"
+          >
+            📄 View PDF
+          </Link>
           <button
             onClick={() => setShowDeleteModal(true)}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-600 hover:bg-red-100 transition-all"
@@ -360,7 +367,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
 
       {/* Customer Info - Read Only */}
       <SectionCard title="Customer Information" description="Customer details (read-only)">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-xs text-[var(--muted-foreground)]">Customer Name</p>
             <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
@@ -389,7 +396,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
 
       {/* Event Details */}
       <SectionCard title="Event Details" description="Event information">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Event Type</label>
             <input
@@ -456,9 +463,9 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         title="Photography Services" 
         description={`${photoItems.length} service(s) - ₹${photoItems.reduce((s, i) => s + i.total_price, 0).toLocaleString("en-IN")}`}
       >
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {photoItems.map((item, idx) => (
-            <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
+            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
               <span className="text-xs text-[var(--muted-foreground)] w-6">{idx + 1}.</span>
               <input
                 type="text"
@@ -508,9 +515,9 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         title="Videography Services" 
         description={`${videoItems.length} service(s) - ₹${videoItems.reduce((s, i) => s + i.total_price, 0).toLocaleString("en-IN")}`}
       >
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {videoItems.map((item, idx) => (
-            <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
+            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
               <span className="text-xs text-[var(--muted-foreground)] w-6">{idx + 1}.</span>
               <input
                 type="text"
@@ -560,9 +567,9 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         title="Additional Services" 
         description={`${additionalItems.length} service(s) - ₹${additionalItems.reduce((s, i) => s + i.total_price, 0).toLocaleString("en-IN")}`}
       >
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {additionalItems.map((item, idx) => (
-            <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
+            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-[var(--secondary)]/50">
               <span className="text-xs text-[var(--muted-foreground)] w-6">{idx + 1}.</span>
               <input
                 type="text"
@@ -609,7 +616,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
 
       {/* Deliverables */}
       <SectionCard title="Deliverables" description="Albums, photos, and prints">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Number of Albums</label>
             <input
@@ -697,7 +704,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
 
       {/* Pricing & Notes */}
       <SectionCard title="Pricing & Notes" description="Discount and additional notes">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           <div className="space-y-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--foreground)]">Discount (%)</label>
@@ -758,7 +765,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
       </SectionCard>
 
       {/* Save Button */}
-      <div className="flex justify-end gap-3 pb-6">
+      <div className="flex flex-col sm:flex-row justify-end gap-3 pb-6">
         <Link
           href="/quotations"
           className="inline-flex h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)] transition-all"

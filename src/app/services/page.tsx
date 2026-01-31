@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
+import { formatDate } from "@/lib/constants";
 
 interface Quotation {
   id: string;
@@ -78,7 +79,12 @@ export default function ServicesPage() {
         if (error) {
           console.error("Error fetching quotations:", error);
         } else {
-          setQuotations(data || []);
+          setQuotations(
+            (data || []).map((q: any) => ({
+              ...q,
+              customers: Array.isArray(q.customers) ? (q.customers[0] || null) : q.customers ?? null,
+            }))
+          );
         }
       } catch (err) {
         console.error("Error:", err);
@@ -138,7 +144,7 @@ AURA KNOT PHOTOGRAPHY
 =======================
 
 QUOTATION: ${selectedQuotation.quotation_number}
-Date: ${new Date().toLocaleDateString()}
+Date: ${formatDate(new Date().toISOString())}
 
 CUSTOMER DETAILS
 ----------------
@@ -148,7 +154,7 @@ Phone: ${selectedQuotation.customers?.phone || "N/A"}
 EVENT DETAILS
 -------------
 Type: ${selectedQuotation.event_type}
-Date: ${selectedQuotation.event_date || "TBD"}
+Date: ${formatDate(selectedQuotation.event_date)}
 Venue: ${selectedQuotation.event_venue || "TBD"}
 City: ${selectedQuotation.event_city || "TBD"}
 
@@ -405,7 +411,7 @@ Thank you for choosing Aura Knot!
                           {quote.event_type}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)]">
-                          {quote.event_date || "—"}
+                          {formatDate(quote.event_date)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)]">
                           {quote.event_city || "—"}

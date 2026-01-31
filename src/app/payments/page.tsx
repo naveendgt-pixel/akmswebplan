@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
+import { formatDate } from "@/lib/constants";
 
 interface Order {
   id: string;
@@ -102,7 +103,12 @@ export default function PaymentsPage() {
           `)
           .order("created_at", { ascending: false });
 
-        setOrders(ordersData || []);
+        setOrders(
+          (ordersData || []).map((o: any) => ({
+            ...o,
+            customers: Array.isArray(o.customers) ? (o.customers[0] || null) : o.customers ?? null,
+          }))
+        );
 
         // Fetch payments
         const { data: paymentsData } = await supabase
@@ -352,7 +358,7 @@ export default function PaymentsPage() {
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)]">
-                            {payment.payment_date}
+                            {formatDate(payment.payment_date)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)]">
                             {payment.reference_number || "—"}

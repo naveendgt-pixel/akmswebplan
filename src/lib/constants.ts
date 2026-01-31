@@ -8,6 +8,17 @@ export const navItems = [
   { href: "/settings", label: "Settings" },
 ];
 
+// Date formatting utility - DD-MMM-YYYY format (e.g., 15-Mar-2026)
+export const formatDate = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return "N/A";
+  const date = new Date(dateStr);
+  const day = date.getDate().toString().padStart(2, "0");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 export const eventTypes = [
   "Engagement",
   "Reception",

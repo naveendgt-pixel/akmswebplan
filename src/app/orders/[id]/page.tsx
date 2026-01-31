@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import StatCard from "@/components/StatCard";
 import { supabase } from "@/lib/supabaseClient";
-import { paymentMethods, paymentTypes, workflowStages } from "@/lib/constants";
+import { paymentMethods, paymentTypes, workflowStages, formatDate } from "@/lib/constants";
 
 interface OrderData {
   id: string;
@@ -48,6 +48,7 @@ interface OrderData {
   payment_status: string;
   delivery_status: string;
   workflow_status: string;
+  final_budget: number;
   notes: string;
   created_at: string;
 }
@@ -107,6 +108,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("");
+  const [editingFinalBudget, setEditingFinalBudget] = useState(false);
+  const [finalBudgetInput, setFinalBudgetInput] = useState<number>(0);
 
   // Post Production Expense Categories (fixed for all orders)
   const postProdCategories = [
@@ -193,8 +196,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
-  const profit = (order?.total_amount || 0) - totalExpenses;
-  const balanceDue = (order?.total_amount || 0) - totalPayments;
+  // Use final_budget if set, otherwise fall back to total_amount (estimated budget)
+  const effectiveBudget = order?.final_budget || order?.total_amount || 0;
+  const profit = effectiveBudget - totalExpenses;
+  const balanceDue = effectiveBudget - totalPayments;
 
   const photographyItems = items.filter((i) => i.category?.toLowerCase() === "photography" || i.description.toLowerCase().includes("photography"));
   const videographyItems = items.filter((i) => i.category?.toLowerCase() === "videography" || i.description.toLowerCase().includes("videography"));
@@ -368,19 +373,47 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleSavePayment = async () => {
     if (!supabase || !order) return;
+    if (!paymentForm.payment_type || !paymentForm.payment_method || !paymentForm.amount) {
+      alert("Please fill in Payment Type, Payment Method, and Amount");
+      return;
+    }
     try {
+      // Use resolvedParams.id to ensure we use the exact ID from URL that matched the order
+      const orderId = resolvedParams.id;
+      
+      // Debug: Verify order exists in database before inserting payment
+      const { data: verifyOrder, error: verifyError } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("id", orderId)
+        .single();
+      
+      if (verifyError || !verifyOrder) {
+        console.error("Order verification failed:", verifyError);
+        alert("Error: Order not found in database. The order may not have been saved properly.");
+        return;
+      }
+      
       const paymentNumber = await generatePaymentNumber();
-      await supabase.from("payments").insert({
+      const { error: insertError } = await supabase.from("payments").insert({
         payment_number: paymentNumber,
-        order_id: order.id,
+        order_id: orderId,
         customer_id: order.customer_id,
         amount: paymentForm.amount,
+        payment_type: paymentForm.payment_type,
         payment_method: paymentForm.payment_method,
         payment_date: paymentForm.payment_date,
-        notes: `${paymentForm.payment_type}${paymentForm.notes ? ` - ${paymentForm.notes}` : ""}`,
+        notes: paymentForm.notes || null,
       });
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        alert("Failed to save payment: " + insertError.message);
+        return;
+      }
       const newTotalPaid = totalPayments + paymentForm.amount;
-      const newBalance = order.total_amount - newTotalPaid;
+      // Use final_budget if set, otherwise use total_amount
+      const budgetForBalance = order.final_budget || order.total_amount;
+      const newBalance = budgetForBalance - newTotalPaid;
       await supabase.from("orders").update({
         amount_paid: newTotalPaid,
         balance_due: newBalance,
@@ -389,17 +422,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       const { data } = await supabase.from("payments").select("*").eq("order_id", order.id).order("payment_date", { ascending: false });
       setPayments(data || []);
       const { data: updatedOrder } = await supabase.from("orders").select("*").eq("id", order.id).single();
-      setOrder(updatedOrder);
+      // Preserve final_budget from current state if database doesn't have the column yet
+      if (updatedOrder) {
+        setOrder({
+          ...updatedOrder,
+          final_budget: updatedOrder.final_budget ?? order.final_budget
+        });
+      }
       setShowPaymentModal(false);
       setPaymentForm({ payment_type: "", payment_method: "", amount: 0, payment_date: new Date().toISOString().split("T")[0], notes: "" });
     } catch (error) {
       console.error("Error saving payment:", error);
     }
-  };
-
-  const formatDate = (date: string) => {
-    if (!date) return "N/A";
-    return new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   const formatCurrency = (amount: number) => {
@@ -517,22 +551,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return (
       <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
         {/* Service Header */}
-        <div className={`px-4 py-3 ${hasExpenses ? "bg-gradient-to-r from-indigo-100 to-purple-100" : "bg-gradient-to-r from-indigo-500/10 to-purple-500/10"}`}>
+        <div className="px-4 py-3 bg-[var(--secondary)]/50">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-sm font-semibold text-[var(--foreground)]">{item.description}</h4>
               <p className="text-xs text-[var(--muted-foreground)]">{item.category} • Qty: {item.quantity}</p>
             </div>
-            {/* Service Amount - Highlighted when expenses exist */}
-            <div className={`text-lg font-bold px-3 py-1 rounded-lg ${hasExpenses ? "bg-indigo-600 text-white shadow-lg ring-2 ring-indigo-400" : "text-[var(--primary)]"}`}>
+            {/* Service Amount */}
+            <div className="text-lg font-bold text-[var(--primary)]">
               {formatCurrency(item.total_price)}
             </div>
           </div>
         </div>
 
         {/* Expense Section - Directly below service */}
-        <div className={`${hasExpenses ? "bg-red-50/50" : "bg-[var(--secondary)]/20"}`}>
-          <div className="px-4 py-2 flex items-center justify-between border-b border-[var(--border)]/50">
+        <div className="bg-[var(--card)]">
+          <div className="px-4 py-2 flex items-center justify-between border-t border-[var(--border)]">
             <span className="text-xs font-medium text-[var(--muted-foreground)]">💰 Expenses</span>
             <button
               onClick={() => handleOpenExpenseModal(item.description)}
@@ -543,37 +577,37 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
 
           {serviceExpenses.length > 0 ? (
-            <div className="px-4 py-3">
+            <div className="px-4 py-3 border-t border-[var(--border)]">
               <div className="space-y-2">
                 {serviceExpenses.map((expense) => (
-                  <div key={expense.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-200">
+                  <div key={expense.id} className="flex items-center justify-between bg-[var(--secondary)]/50 rounded-lg px-3 py-2 border border-[var(--border)]">
                     <div className="flex-1">
                       <p className="text-sm text-[var(--foreground)]">{expense.vendor_name || "Vendor"}</p>
                       <p className="text-xs text-[var(--muted-foreground)]">{expense.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded ring-1 ring-red-300">
+                      <span className="text-sm font-semibold text-amber-600">
                         -{formatCurrency(expense.amount)}
                       </span>
-                      <button onClick={() => handleEditExpense(expense)} className="text-xs p-1 rounded bg-blue-100 text-blue-700">✏️</button>
-                      <button onClick={() => handleDeleteExpense(expense.id)} className="text-xs p-1 rounded bg-red-100 text-red-700">🗑️</button>
+                      <button onClick={() => handleEditExpense(expense)} className="text-xs p-1 rounded bg-[var(--secondary)] text-[var(--foreground)] hover:bg-[var(--border)]">✏️</button>
+                      <button onClick={() => handleDeleteExpense(expense.id)} className="text-xs p-1 rounded bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--border)]">🗑️</button>
                     </div>
                   </div>
                 ))}
               </div>
               {/* Summary */}
-              <div className="mt-3 flex items-center justify-between text-xs bg-white rounded-lg p-2 border border-[var(--border)]">
+              <div className="mt-3 flex items-center justify-between text-xs bg-[var(--secondary)]/50 rounded-lg p-2 border border-[var(--border)]">
                 <div className="flex gap-4">
-                  <span className="text-indigo-600">Service: <strong>{formatCurrency(item.total_price)}</strong></span>
-                  <span className="text-red-600">Expense: <strong>{formatCurrency(expenseTotal)}</strong></span>
+                  <span className="text-[var(--foreground)]">Service: <strong>{formatCurrency(item.total_price)}</strong></span>
+                  <span className="text-amber-600">Expense: <strong>{formatCurrency(expenseTotal)}</strong></span>
                 </div>
-                <span className={profitLoss >= 0 ? "text-green-600" : "text-orange-600"}>
+                <span className={profitLoss >= 0 ? "text-green-600" : "text-amber-600"}>
                   {profitLoss >= 0 ? "Profit" : "Loss"}: <strong>{formatCurrency(Math.abs(profitLoss))}</strong>
                 </span>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-[var(--muted-foreground)] text-center py-3">No expenses recorded</p>
+            <p className="text-xs text-[var(--muted-foreground)] text-center py-3 border-t border-[var(--border)]">No expenses recorded</p>
           )}
         </div>
       </div>
@@ -581,9 +615,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 xs:gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-1 xs:flex-row xs:items-start xs:justify-between">
         <div>
           <p className="text-sm font-medium text-[var(--muted-foreground)]">Order Details</p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">{order.order_number}</h2>
@@ -722,8 +756,72 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 xs:gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Estimated Budget" value={formatCurrency(order.total_amount)} />
+        
+        {/* Editable Final Budget */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--muted-foreground)] mb-1">Final Budget</p>
+          {editingFinalBudget ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={finalBudgetInput}
+                onChange={(e) => setFinalBudgetInput(Number(e.target.value))}
+                className="w-full h-8 px-2 text-lg font-bold rounded border border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                autoFocus
+              />
+              <button
+                onClick={async () => {
+                  if (!supabase) return;
+                  try {
+                    const newBalance = finalBudgetInput - totalPayments;
+                    await supabase.from("orders").update({ 
+                      final_budget: finalBudgetInput,
+                      balance_due: newBalance,
+                      payment_status: newBalance <= 0 ? "Paid" : totalPayments > 0 ? "Partial" : "Pending"
+                    }).eq("id", order.id);
+                    setOrder({ ...order, final_budget: finalBudgetInput, balance_due: newBalance });
+                    setEditingFinalBudget(false);
+                  } catch (error) {
+                    console.error("Error updating final budget:", error);
+                  }
+                }}
+                className="p-1.5 rounded bg-green-500 text-white hover:bg-green-600"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => {
+                  setEditingFinalBudget(false);
+                  setFinalBudgetInput(order.final_budget || order.total_amount);
+                }}
+                className="p-1.5 rounded bg-gray-400 text-white hover:bg-gray-500"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div 
+              onClick={() => {
+                setFinalBudgetInput(order.final_budget || order.total_amount);
+                setEditingFinalBudget(true);
+              }}
+              className="flex items-center gap-2 cursor-pointer group"
+            >
+              <p className={`text-2xl font-bold ${(order.final_budget || order.total_amount) !== order.total_amount ? 'text-blue-600' : 'text-[var(--foreground)]'}`}>
+                {formatCurrency(order.final_budget || order.total_amount)}
+              </p>
+              <span className="text-xs text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
+            </div>
+          )}
+          {(order.final_budget && order.final_budget !== order.total_amount) && (
+            <p className="text-xs text-blue-600 mt-1">
+              {order.final_budget > order.total_amount ? '+' : ''}{formatCurrency(order.final_budget - order.total_amount)} from estimate
+            </p>
+          )}
+        </div>
+        
         <StatCard label="Total Expenses" value={formatCurrency(totalExpenses)} trend="neutral" />
         <StatCard label="Profit" value={formatCurrency(profit)} trend={profit >= 0 ? "up" : "down"} />
         <StatCard label="Balance Due" value={formatCurrency(balanceDue)} trend={balanceDue > 0 ? "down" : "up"} />
@@ -731,7 +829,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Customer & Event Info */}
       <SectionCard title="Customer & Event Information" description="Frozen snapshot from confirmed quotation">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 xs:gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
             <p className="text-xs text-[var(--muted-foreground)]">Customer Name</p>
             <p className="font-medium text-[var(--foreground)]">{order.customer_name || customer?.name || "—"}</p>
@@ -772,7 +870,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </SectionCard>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-[var(--border)] pb-2">
+      <div className="flex gap-1 xs:gap-2 border-b border-[var(--border)] pb-2 overflow-x-auto">
         {(["overview", "payments"] as const).map((tab) => (
           <button
             key={tab}
@@ -788,26 +886,26 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Quotation Tab - Services, Deliverables & Expenses in one place */}
       {activeTab === "overview" && (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 xs:gap-6">
           {/* Quotation Pricing Summary */}
-          <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-6">
-            <h3 className="text-lg font-semibold text-indigo-800 mb-4 flex items-center gap-2">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
               📄 Quotation Pricing
             </h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="text-center p-4 bg-white rounded-xl border border-indigo-100">
+            <div className="grid gap-2 xs:gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="text-center p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50">
                 <p className="text-xs text-[var(--muted-foreground)] mb-1">Subtotal</p>
                 <p className="text-xl font-bold text-[var(--foreground)]">{formatCurrency(order.subtotal || order.total_amount)}</p>
               </div>
-              <div className="text-center p-4 bg-white rounded-xl border border-green-100">
+              <div className="text-center p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50">
                 <p className="text-xs text-green-600 mb-1">Discount ({order.discount_percent || 0}%)</p>
                 <p className="text-xl font-bold text-green-600">-{formatCurrency(order.discount_amount || 0)}</p>
               </div>
-              <div className="text-center p-4 bg-indigo-500 rounded-xl text-white">
+              <div className="text-center p-4 bg-[var(--primary)] rounded-xl text-white">
                 <p className="text-xs mb-1 opacity-90">Total Amount</p>
                 <p className="text-2xl font-bold">{formatCurrency(order.total_amount)}</p>
               </div>
-              <div className="text-center p-4 bg-white rounded-xl border border-amber-100">
+              <div className="text-center p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50">
                 <p className="text-xs text-amber-600 mb-1">Balance Due</p>
                 <p className={`text-xl font-bold ${balanceDue <= 0 ? "text-green-600" : "text-amber-600"}`}>
                   {formatCurrency(balanceDue)}
@@ -902,42 +1000,41 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               {postProdCategories.map((category) => {
                 const categoryExpenses = expenses.filter((e) => e.category === category);
                 const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
-                const hasExpenses = categoryExpenses.length > 0;
 
                 return (
-                  <div key={category} className={`rounded-xl border ${hasExpenses ? "border-purple-300 bg-purple-50/50" : "border-[var(--border)] bg-[var(--secondary)]/30"} overflow-hidden`}>
-                    <div className="px-3 py-2 flex items-center justify-between border-b border-[var(--border)]/50">
+                  <div key={category} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+                    <div className="px-3 py-2 flex items-center justify-between bg-[var(--secondary)]/50">
                       <span className="text-sm font-medium text-[var(--foreground)]">{category}</span>
                       <button
                         onClick={() => handleOpenPostProdModal(category)}
-                        className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                        className="text-xs px-2 py-0.5 rounded bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90"
                       >
                         +
                       </button>
                     </div>
                     {categoryExpenses.length > 0 ? (
-                      <div className="p-2 space-y-1">
+                      <div className="p-2 space-y-1 border-t border-[var(--border)]">
                         {categoryExpenses.map((expense) => (
-                          <div key={expense.id} className="flex items-center justify-between bg-white rounded-lg px-2 py-1.5 border border-purple-100">
+                          <div key={expense.id} className="flex items-center justify-between bg-[var(--secondary)]/50 rounded-lg px-2 py-1.5 border border-[var(--border)]">
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-[var(--foreground)] truncate">{expense.vendor_name || "—"}</p>
                               {expense.description && <p className="text-xs text-[var(--muted-foreground)] truncate">{expense.description}</p>}
                             </div>
                             <div className="flex items-center gap-1 ml-2">
-                              <span className="text-xs font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                              <span className="text-xs font-semibold text-amber-600">
                                 {formatCurrency(expense.amount)}
                               </span>
-                              <button onClick={() => handleEditPostProdExpense(expense)} className="text-xs p-0.5 rounded bg-blue-50 text-blue-600">✏️</button>
-                              <button onClick={() => handleDeleteExpense(expense.id)} className="text-xs p-0.5 rounded bg-red-50 text-red-600">🗑️</button>
+                              <button onClick={() => handleEditPostProdExpense(expense)} className="text-xs p-0.5 rounded bg-[var(--secondary)] text-[var(--foreground)] hover:bg-[var(--border)]">✏️</button>
+                              <button onClick={() => handleDeleteExpense(expense.id)} className="text-xs p-0.5 rounded bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--border)]">🗑️</button>
                             </div>
                           </div>
                         ))}
                         <div className="text-right mt-1">
-                          <span className="text-xs font-semibold text-purple-700">Subtotal: {formatCurrency(categoryTotal)}</span>
+                          <span className="text-xs font-semibold text-[var(--foreground)]">Subtotal: {formatCurrency(categoryTotal)}</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-xs text-[var(--muted-foreground)] text-center py-3">No expenses</p>
+                      <p className="text-xs text-[var(--muted-foreground)] text-center py-3 border-t border-[var(--border)]">No expenses</p>
                     )}
                   </div>
                 );
@@ -946,36 +1043,40 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Post Production Summary */}
             {getPostProdExpenses().length > 0 && (
-              <div className="mt-4 rounded-xl bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-200 p-4">
+              <div className="mt-4 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)] p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-purple-800">Total Post Production Expenses</span>
-                  <span className="text-xl font-bold text-purple-900">{formatCurrency(postProdExpenseTotal)}</span>
+                  <span className="text-sm font-medium text-[var(--foreground)]">Total Post Production Expenses</span>
+                  <span className="text-xl font-bold text-amber-600">{formatCurrency(postProdExpenseTotal)}</span>
                 </div>
               </div>
             )}
           </SectionCard>
 
           {/* Order Summary */}
-          <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-[var(--primary)]/30 rounded-xl p-6">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
             <h4 className="text-lg font-semibold text-[var(--foreground)] mb-4">📊 Order Summary</h4>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="text-center">
-                <p className="text-xs text-[var(--muted-foreground)]">Total Budget</p>
-                <p className="text-2xl font-bold text-[var(--primary)]">{formatCurrency(order.total_amount)}</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
+                <p className="text-xs text-[var(--muted-foreground)]">Estimated Budget</p>
+                <p className="text-xl font-bold text-[var(--foreground)]">{formatCurrency(order.total_amount)}</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
+                <p className="text-xs text-[var(--muted-foreground)]">Final Budget</p>
+                <p className="text-xl font-bold text-[var(--primary)]">{formatCurrency(order.final_budget || order.total_amount)}</p>
+              </div>
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
                 <p className="text-xs text-[var(--muted-foreground)]">Service Expenses</p>
-                <p className="text-xl font-bold text-orange-600">{formatCurrency(serviceExpensesTotal)}</p>
+                <p className="text-xl font-bold text-amber-600">{formatCurrency(serviceExpensesTotal)}</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
                 <p className="text-xs text-[var(--muted-foreground)]">Post Prod Expenses</p>
-                <p className="text-xl font-bold text-purple-600">{formatCurrency(postProdExpenseTotal)}</p>
+                <p className="text-xl font-bold text-amber-600">{formatCurrency(postProdExpenseTotal)}</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
                 <p className="text-xs text-[var(--muted-foreground)]">{profit >= 0 ? "Profit" : "Loss"}</p>
-                <p className={`text-2xl font-bold ${profit >= 0 ? "text-green-600" : "text-orange-600"}`}>{formatCurrency(Math.abs(profit))}</p>
+                <p className={`text-2xl font-bold ${profit >= 0 ? "text-green-600" : "text-amber-600"}`}>{formatCurrency(Math.abs(profit))}</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)]">
                 <p className="text-xs text-[var(--muted-foreground)]">Balance Due</p>
                 <p className={`text-2xl font-bold ${balanceDue > 0 ? "text-amber-600" : "text-green-600"}`}>{formatCurrency(balanceDue)}</p>
               </div>

@@ -1,13 +1,15 @@
 -- ============================================================
 -- AURA KNOT EVENT MANAGEMENT SYSTEM - COMPLETE DATABASE SCHEMA
 -- ============================================================
--- Run this in Supabase SQL Editor: https://app.supabase.com
--- This script is SAFE to run multiple times (drops existing tables first)
+-- ⚠️  WARNING: THIS FILE DELETES ALL DATA! ⚠️
+-- DO NOT RUN THIS ON A DATABASE WITH REAL DATA!
+-- 
+-- For adding new columns, use migrations.sql instead
 -- ============================================================
 
 -- ============================================
 -- STEP 1: DROP ALL EXISTING TABLES
--- (Run even if tables don't exist - no errors)
+-- ⚠️  THIS DELETES ALL YOUR DATA!
 -- ============================================
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS quotation_items CASCADE;
@@ -184,6 +186,7 @@ CREATE TABLE orders (
   discount_amount DECIMAL(12, 2) DEFAULT 0,
   tax_amount DECIMAL(12, 2) DEFAULT 0,
   total_amount DECIMAL(12, 2) DEFAULT 0,
+  final_budget DECIMAL(12, 2) DEFAULT NULL,
   -- Payment Tracking
   amount_paid DECIMAL(12, 2) DEFAULT 0,
   balance_due DECIMAL(12, 2) DEFAULT 0,

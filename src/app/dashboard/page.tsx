@@ -5,7 +5,7 @@ import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
-import { workflowStages } from "@/lib/constants";
+import { workflowStages, formatDate } from "@/lib/constants";
 
 interface DashboardStats {
   totalOrders: number;
@@ -170,10 +170,6 @@ export default function DashboardPage() {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(amount);
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-  };
-
   const paymentStatusColors: Record<string, string> = {
     Pending: "bg-[var(--warning)]/20 text-[var(--warning)] border-[var(--warning)]/30",
     Partial: "bg-[var(--primary)]/20 text-[var(--primary)] border-[var(--primary)]/30",
@@ -199,12 +195,15 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 px-2 sm:px-4 max-w-7xl w-full mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-[var(--muted-foreground)]">Dashboard</p>
-          <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Overview</h2>
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 mb-2 md:mb-0">
+          <img src="/Untitled-1.png" alt="Logo" className="h-10 w-10 rounded-lg shadow" />
+          <div>
+            <p className="text-sm font-medium text-[var(--muted-foreground)]">Dashboard</p>
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Overview</h2>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <select 
@@ -227,7 +226,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Orders" value={stats.totalOrders.toString()} trend="neutral" />
         <StatCard label="Pending Orders" value={stats.pendingOrders.toString()} helper="Workflow in progress" trend={stats.pendingOrders > 0 ? "down" : "neutral"} />
         <StatCard label="Completed Orders" value={stats.completedOrders.toString()} helper="All stages done" trend="up" />
@@ -235,7 +234,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Financial Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-[var(--border)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--accent)]/10 p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Monthly Revenue</p>
           <p className="text-2xl font-bold text-[var(--foreground)]">{formatCurrency(stats.monthlyRevenue)}</p>
@@ -257,7 +256,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Workflow Progress & Quotations */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         <SectionCard title="Workflow Progress" description="Completion status across all orders">
           {stats.totalOrders === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -316,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         <SectionCard title="Recent Orders" description="Latest orders created">
           {recentOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">

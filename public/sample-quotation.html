@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quotation - AK-2026-0001 | Aura Knot</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #fff;
+      color: #1e293b;
+      padding: 30px;
+      line-height: 1.5;
+      font-size: 12px;
+    }
+    
+    .container {
+      max-width: 750px;
+      margin: 0 auto;
+    }
+    
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #5b1e2d;
+      margin-bottom: 20px;
+    }
+    
+    .logo-img {
+      height: 60px;
+      width: auto;
+    }
+    
+    .logo-contact {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 6px;
+    }
+    
+    .doc-info {
+      text-align: right;
+    }
+    
+    .doc-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e293b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .doc-number {
+      font-size: 13px;
+      color: #5b1e2d;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    
+    .doc-date {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+    
+    .status-pending {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    
+    .status-confirmed {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    
+    /* Section */
+    .section {
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+    }
+    
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #5b1e2d;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e6c9a9;
+      margin-bottom: 12px;
+    }
+    
+    /* Info Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .info-box {
+      background: #faf6f2;
+      padding: 12px;
+      border-radius: 6px;
+      border-left: 3px solid #5b1e2d;
+    }
+    
+    .info-label {
+      font-size: 9px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    
+    .info-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    .info-sub {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      page-break-inside: avoid;
+    }
+    
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 11px;
+    }
+    
+    th {
+      background: #5b1e2d;
+      color: white;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+    }
+    
+    th:first-child {
+      border-radius: 4px 0 0 0;
+    }
+    
+    th:last-child {
+      border-radius: 0 4px 0 0;
+    }
+    
+    tr:nth-child(even) {
+      background: #faf6f2;
+    }
+    
+    td {
+      border-bottom: 1px solid #e6c9a9;
+    }
+    
+    .amount {
+      text-align: right;
+      font-weight: 600;
+    }
+    
+    .qty {
+      text-align: center;
+    }
+    
+    /* Category Row */
+    .category-row {
+      background: #e6c9a9 !important;
+    }
+    
+    .category-row td {
+      font-weight: 700;
+      color: #5b1e2d;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 10px;
+    }
+    
+    /* Summary */
+    .summary-box {
+      background: #faf6f2;
+      border: 1px solid #e6c9a9;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+      page-break-inside: avoid;
+    }
+    
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 12px;
+    }
+    
+    .summary-row.subtotal {
+      border-bottom: 1px solid #e6c9a9;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+    }
+    
+    .summary-row.discount {
+      color: #16a34a;
+    }
+    
+    .summary-row.total {
+      border-top: 2px solid #5b1e2d;
+      padding-top: 12px;
+      margin-top: 8px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    
+    .summary-row.total .value {
+      color: #5b1e2d;
+    }
+    
+    /* Deliverables Grid */
+    .deliverables-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+      page-break-inside: avoid;
+    }
+    
+    .deliverable-item {
+      background: #faf6f2;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid #e6c9a9;
+    }
+    
+    .deliverable-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #5b1e2d;
+    }
+    
+    .deliverable-label {
+      font-size: 9px;
+      color: #64748b;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+    
+    /* Notes */
+    .notes-box {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .notes-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      margin-bottom: 8px;
+    }
+    
+    .notes-content {
+      font-size: 13px;
+      color: #78350f;
+    }
+    
+    /* Terms */
+    .terms {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8fafc;
+      border-radius: 6px;
+      page-break-inside: avoid;
+    }
+    
+    .terms-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #5b1e2d;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    
+    .terms-list {
+      font-size: 9px;
+      color: #475569;
+      list-style: none;
+      columns: 1;
+    }
+    
+    .terms-list li {
+      padding: 2px 0;
+      line-height: 1.4;
+    }
+    
+    /* Footer Thank You */
+    .footer-note {
+      margin-top: 20px;
+      padding: 12px;
+      background: #faf6f2;
+      border-radius: 6px;
+      text-align: center;
+      border: 1px solid #e6c9a9;
+      page-break-inside: avoid;
+    }
+    
+    .footer-note p {
+      font-size: 10px;
+      color: #5b1e2d;
+      margin: 2px 0;
+    }
+    
+    .footer-note .thank-you {
+      font-size: 12px;
+      font-weight: 600;
+      color: #5b1e2d;
+    }
+    
+    /* Footer */
+    .footer {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid #e6c9a9;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      page-break-inside: avoid;
+    }
+    
+    .contact-info {
+      font-size: 10px;
+      color: #64748b;
+    }
+    
+    .contact-info p {
+      margin: 2px 0;
+    }
+    
+    .signature-box {
+      text-align: center;
+    }
+    
+    .signature-line {
+      width: 150px;
+      border-top: 1px solid #1e293b;
+      margin-bottom: 4px;
+    }
+    
+    .signature-label {
+      font-size: 9px;
+      color: #64748b;
+    }
+    
+    /* Print Styles */
+    @media print {
+      body {
+        padding: 0;
+        font-size: 11px;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      
+      .container {
+        max-width: 100%;
+      }
+      
+      .header {
+        page-break-after: avoid;
+      }
+      
+      .section {
+        page-break-inside: avoid;
+      }
+      
+      table {
+        page-break-inside: avoid;
+      }
+      
+      tr {
+        page-break-inside: avoid;
+      }
+      
+      .summary-box,
+      .deliverables-grid,
+      .terms,
+      .footer-note,
+      .footer {
+        page-break-inside: avoid;
+      }
+      
+      .info-box {
+        background: #faf6f2 !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+      
+      th {
+        background: #5b1e2d !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+      
+      .category-row {
+        background: #e6c9a9 !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+      
+      .toggle-container {
+        display: none !important;
+      }
+    }
+    
+    /* Toggle Button Styles */
+    .toggle-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #fff;
+      border: 2px solid #5b1e2d;
+      border-radius: 10px;
+      padding: 15px 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .toggle-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #5b1e2d;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 26px;
+    }
+    
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 26px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+      background-color: #5b1e2d;
+    }
+    
+    input:checked + .toggle-slider:before {
+      transform: translateX(24px);
+    }
+    
+    .toggle-status {
+      font-size: 11px;
+      color: #64748b;
+      min-width: 80px;
+    }
+    
+    /* Hide price elements when toggled */
+    .hide-prices .amount,
+    .hide-prices th.amount,
+    .hide-prices .summary-box,
+    .hide-prices .section-title-price {
+      display: none !important;
+    }
+    
+    .hide-prices table th:last-child,
+    .hide-prices table td:last-child {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toggle Button -->
+  <div class="toggle-container">
+    <span class="toggle-label">Show Prices</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="priceToggle" checked onchange="togglePrices()">
+      <span class="toggle-slider"></span>
+    </label>
+    <span class="toggle-status" id="toggleStatus">Prices Visible</span>
+  </div>
+  
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div>
+        <img src="/ak-logo-final.png" alt="Aura Knot" class="logo-img">
+        <div class="logo-contact" style="font-weight: 600; color: #5b1e2d;">Naveen B T, Founder & Creative Director</div>
+        <div class="logo-contact">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
+      </div>
+      <div class="doc-info">
+        <div class="doc-title">Quotation</div>
+        <div class="doc-number">AK-2026-0001</div>
+        <div class="doc-date">Date: 31 Jan 2026</div>
+        <div class="status-badge status-pending">Pending</div>
+      </div>
+    </div>
+    
+    <!-- Customer & Event Info -->
+    <div class="section">
+      <div class="section-title">Customer & Event Details</div>
+      <div class="info-grid">
+        <div class="info-box">
+          <div class="info-label">Customer Name</div>
+          <div class="info-value">Rajesh Kumar</div>
+          <div class="info-sub">+91 98765 43210 • rajesh.kumar@email.com</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Event Type</div>
+          <div class="info-value">Engagement, Reception & Wedding</div>
+          <div class="info-sub">Package 3 - Premium</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Event Date</div>
+          <div class="info-value">15 Feb 2026 - 17 Feb 2026</div>
+          <div class="info-sub">3 Days Event</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Venue</div>
+          <div class="info-value">Sri Lakshmi Mahal</div>
+          <div class="info-sub">Chennai, Tamil Nadu</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Services Table -->
+    <div class="section">
+      <div class="section-title">Services & Pricing</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="qty">Qty</th>
+            <th>Details</th>
+            <th class="amount">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Photography -->
+          <tr class="category-row">
+            <td colspan="4">📷 Photography Services</td>
+          </tr>
+          <tr>
+            <td>Traditional Photography</td>
+            <td class="qty">2</td>
+            <td>Stage, Receiving • Full Session</td>
+            <td class="amount">₹35,000</td>
+          </tr>
+          <tr>
+            <td>Candid Photography</td>
+            <td class="qty">2</td>
+            <td>Stage, Ritual • Full Session</td>
+            <td class="amount">₹45,000</td>
+          </tr>
+          
+          <!-- Videography -->
+          <tr class="category-row">
+            <td colspan="4">🎬 Videography Services</td>
+          </tr>
+          <tr>
+            <td>Traditional Videography</td>
+            <td class="qty">2</td>
+            <td>Stage, Receiving • Full Session</td>
+            <td class="amount">₹40,000</td>
+          </tr>
+          <tr>
+            <td>Candid Videography</td>
+            <td class="qty">1</td>
+            <td>Stage, Ritual • Full Session</td>
+            <td class="amount">₹50,000</td>
+          </tr>
+          
+          <!-- Additional Services -->
+          <tr class="category-row">
+            <td colspan="4">✨ Additional Services</td>
+          </tr>
+          <tr>
+            <td>Drone Photography</td>
+            <td class="qty">1</td>
+            <td>Aerial shots of venue & ceremony</td>
+            <td class="amount">₹15,000</td>
+          </tr>
+          <tr>
+            <td>Pre-Wedding Shoot</td>
+            <td class="qty">1</td>
+            <td>Outdoor location, 1 day</td>
+            <td class="amount">₹25,000</td>
+          </tr>
+          <tr>
+            <td>LED Wall</td>
+            <td class="qty">1</td>
+            <td>10x8 ft LED display</td>
+            <td class="amount">₹20,000</td>
+          </tr>
+          <tr>
+            <td>Live Streaming</td>
+            <td class="qty">1</td>
+            <td>YouTube/Facebook streaming</td>
+            <td class="amount">₹10,000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Deliverables -->
+    <div class="section">
+      <div class="section-title">Deliverables</div>
+      <div class="deliverables-grid">
+        <div class="deliverable-item">
+          <div class="deliverable-value">2</div>
+          <div class="deliverable-label">Albums</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">40</div>
+          <div class="deliverable-label">Sheets/Album</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">500+</div>
+          <div class="deliverable-label">Digital Photos</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">12x36</div>
+          <div class="deliverable-label">Album Size</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">4</div>
+          <div class="deliverable-label">Mini Books</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">2</div>
+          <div class="deliverable-label">Calendars</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">3</div>
+          <div class="deliverable-label">Photo Frames</div>
+        </div>
+        <div class="deliverable-item">
+          <div class="deliverable-value">1</div>
+          <div class="deliverable-label">Highlight Video</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Summary -->
+    <div class="section">
+      <div class="section-title">Price Summary</div>
+      <div class="summary-box">
+        <div class="summary-row subtotal">
+          <span>Photography Services</span>
+          <span>₹80,000</span>
+        </div>
+        <div class="summary-row subtotal">
+          <span>Videography Services</span>
+          <span>₹90,000</span>
+        </div>
+        <div class="summary-row subtotal">
+          <span>Additional Services</span>
+          <span>₹70,000</span>
+        </div>
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span>₹2,40,000</span>
+        </div>
+        <div class="summary-row discount">
+          <span>Discount (5%)</span>
+          <span>- ₹12,000</span>
+        </div>
+        <div class="summary-row total">
+          <span>Grand Total</span>
+          <span class="value">₹2,28,000</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Terms -->
+    <div class="terms">
+      <div class="terms-title">Terms & Conditions</div>
+      <ul class="terms-list">
+        <li>1. Delivery: Soft copies delivered within 7 days of the event unless agreed otherwise.</li>
+        <li>2. Selection: Client to select photos for album within 10 days of receiving soft copies.</li>
+        <li>3. Album Design: Initial design: 20 days after selection; final corrections: within 10 days of feedback.</li>
+        <li>4. Approval: Final approval required before printing; no changes after approval.</li>
+        <li>5. Delays: Client delays may affect delivery timelines.</li>
+        <li>6. Corrections: Extra corrections beyond scope or after approval will incur charges.</li>
+        <li>7. Payments: 50% advance to confirm; 40% on event date; 10% before album printing.</li>
+        <li>8. Cancellation: Advance is non-refundable for cancellations/postponements.</li>
+        <li>9. Meetings: Clients may need to attend planning discussions.</li>
+        <li>10. Outdoor Shoots: Standard outdoor shoot: up to 6 hours; extra time and expenses borne by client.</li>
+        <li>11. Validity: Outdoor-shoot offers must be used within 60 days of the event date.</li>
+        <li>12. Cooperation: Client cooperation is required for best creative results.</li>
+        <li>13. Copyright: Aura Knot Photography retains copyright; selected works may be used for portfolio/promotions.</li>
+      </ul>
+    </div>
+    
+    <!-- Footer Note -->
+    <div class="footer-note">
+      <p class="thank-you">Thank you for choosing Aura Knot Photography.</p>
+      <p>Valid Until: 18 February 2026 | This is a computer-generated quotation.</p>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+      <div class="contact-info">
+        <p><strong>Aura Knot Photography</strong></p>
+        <p>📍 Perundurai, Erode</p>
+        <p>📞 +91 8610 100 885 | ✉️ auraknot.photo@gmail.com</p>
+      </div>
+      <div class="signature-box">
+        <div class="signature-line"></div>
+        <div class="signature-label">Authorized Signature</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    function togglePrices() {
+      const checkbox = document.getElementById('priceToggle');
+      const container = document.querySelector('.container');
+      const status = document.getElementById('toggleStatus');
+      
+      if (checkbox.checked) {
+        container.classList.remove('hide-prices');
+        status.textContent = 'Prices Visible';
+      } else {
+        container.classList.add('hide-prices');
+        status.textContent = 'Prices Hidden';
+      }
+    }
+  </script>
+</body>
+</html>

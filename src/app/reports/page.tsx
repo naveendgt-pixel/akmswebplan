@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import SectionCard from "@/components/SectionCard";
-import { eventTypes, reportPeriods } from "@/lib/constants";
+import { eventTypes, reportPeriods, formatDate } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 
 interface OrderSummary {
@@ -152,7 +152,7 @@ export default function ReportsPage() {
     <div class="doc-info">
       <div class="doc-title">${reportType === "pnl" ? "PROFIT & LOSS STATEMENT" : "FINANCIAL SUMMARY"}</div>
       <div class="doc-period">Period: ${period || "All Time"} ${eventType ? `• ${eventType}` : ""}</div>
-      <div class="doc-period">Generated: ${new Date().toLocaleDateString("en-IN")}</div>
+      <div class="doc-period">Generated: ${formatDate(new Date().toISOString())}</div>
     </div>
   </div>
 
