@@ -41,18 +41,32 @@ export default function AuthButton() {
 
   const handleSignIn = async () => {
     if (!supabase) return;
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
+    try {
+      // eslint-disable-next-line no-console
+      console.debug("Starting Google OAuth sign-in", { redirectTo: `${window.location.origin}/dashboard` });
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Google sign-in failed:", err);
+      throw err;
+    }
   };
 
   const handleSignOut = async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
-    setEmail(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Sign-out failed:", err);
+    } finally {
+      setEmail(null);
+    }
   };
 
   // Show disabled state if Supabase is not configured

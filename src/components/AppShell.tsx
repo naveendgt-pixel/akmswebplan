@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navItems } from "@/lib/constants";
 import AuthButton from "@/components/AuthButton";
-import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { isAuthorizedEmail } from "@/lib/auth";
 
@@ -32,6 +31,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
+
+  // Handle OAuth redirect that returns tokens in the URL hash (e.g. #access_token=...)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (!hash || !hash.includes("access_token")) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!supabase || !access_token || !refresh_token) return;
+    (async () => {
+      try {
+        // setSession will populate Supabase client session from tokens in the URL
+        // Log minimal info for debugging (avoid printing full tokens)
+        // eslint-disable-next-line no-console
+        console.debug("OAuth tokens found in URL hash. Setting Supabase session...", {
+          access_preview: access_token?.slice(0, 8),
+          refresh_present: Boolean(refresh_token),
+        });
+        await supabase.auth.setSession({ access_token, refresh_token });
+        // eslint-disable-next-line no-console
+        console.debug("Supabase session set from URL hash.");
+        // redirect to dashboard for a smoother UX if not already there
+        if (typeof window !== "undefined" && window.location.pathname !== "/dashboard") {
+          window.location.replace("/dashboard");
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to set Supabase session from URL hash:", err);
+      } finally {
+        // remove tokens from URL for cleanliness
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
