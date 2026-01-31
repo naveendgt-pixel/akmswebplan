@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navItems } from "@/lib/constants";
 import AuthButton from "@/components/AuthButton";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { isAuthorizedEmail } from "@/lib/auth";
 
 const isActiveRoute = (pathname: string, href: string) => {
   if (href === "/dashboard" && pathname === "/") return true;
@@ -23,21 +26,60 @@ const navIcons: Record<string, string> = {
   "/settings": "⚙️",
 };
 
-export default function AppShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col">
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-2 py-2 sm:gap-4 sm:px-4 sm:py-3 md:px-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Mobile Menu Button */}
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    const syncSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const sessionEmail = data.session?.user.email ?? null;
+      if (!mounted) return;
+      setEmail(sessionEmail);
+      const authorized = isAuthorizedEmail(sessionEmail);
+      setIsAuthorized(authorized);
+      setLoading(false);
+      if (sessionEmail && !authorized) {
+        await supabase.auth.signOut();
+        setEmail(null);
+      }
+    };
+    syncSession();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      syncSession();
+    });
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (!email || !isAuthorized) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--background)]">
+        <div className="mb-6">
+          <AuthButton />
+        </div>
+        <p className="text-lg font-semibold text-[var(--muted-foreground)]">Please sign in to access the application.</p>
+        {!isAuthorized && (
+          <p className="mt-2 text-sm text-red-500">Access restricted. Contact admin for access.</p>
+        )}
+      </div>
+    );
+  }
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)] lg:hidden"
