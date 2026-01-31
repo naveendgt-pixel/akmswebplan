@@ -31,6 +31,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
+  const oauthBypass = typeof process !== 'undefined' && !!process.env.NEXT_PUBLIC_DISABLE_OAUTH &&
+    (process.env.NEXT_PUBLIC_DISABLE_OAUTH === '1' || process.env.NEXT_PUBLIC_DISABLE_OAUTH?.toLowerCase() === 'true');
 
   // Handle OAuth redirect that returns tokens in the URL hash (e.g. #access_token=...)
   useEffect(() => {
@@ -72,6 +74,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // If OAuth is disabled in this environment, allow opening dashboard root without sign-in
+    if (oauthBypass && typeof window !== 'undefined' && window.location.pathname === '/') {
+      try {
+        window.location.replace('/dashboard');
+      } catch (e) {
+        /* ignore */
+      }
+    }
     if (!supabase) return;
     let mounted = true;
     const syncSession = async () => {
@@ -106,7 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!email || !isAuthorized) {
+  if (!oauthBypass && (!email || !isAuthorized)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--background)]">
         <div className="mb-6">

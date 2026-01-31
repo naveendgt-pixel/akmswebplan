@@ -528,21 +528,51 @@ export default function QuotationsListPage() {
   return (
     <div className="flex flex-col gap-4 xs:gap-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-2 xs:gap-4 xs:flex-row xs:items-center xs:justify-between">
+      <div className="flex flex-col gap-2 xs:gap-4 xs:flex-row xs:items-start xs:justify-between">
         <div>
           <p className="text-sm font-medium text-[var(--muted-foreground)]">Sales Pipeline</p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Quotations</h2>
         </div>
-        <Link
-          href="/customers/new"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
-        >
-          <span className="text-lg">+</span> New Quotation
-        </Link>
+
+        <div className="flex items-center gap-3">
+          {/* Prominent totals card - visible on sm+ next to header (no New button) */}
+          <div className="hidden sm:flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-md w-72 md:w-96">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-[var(--muted-foreground)]">Total Quotations</div>
+                <div className="text-2xl md:text-3xl font-extrabold">{stats.total}</div>
+              </div>
+              <div className="text-2xl md:text-3xl">📄</div>
+            </div>
+            <div className="mt-3 border-t border-[var(--border)] pt-3">
+              <div className="text-xs text-[var(--muted-foreground)]">Total Value</div>
+              <div className="text-lg md:text-2xl font-bold">₹{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="text-center">
+                <div className="text-lg font-bold">{stats.draft}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Draft</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold">{stats.pending}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Pending</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold">{stats.confirmed}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Confirmed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold">{stats.declined}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">Declined</div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
       </div>
 
-      {/* Stats Overview - Clear Total Display */}
-      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-4 xs:p-6 text-white">
+      {/* Stats Overview - Clear Total Display (mobile only) */}
+      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-4 xs:p-6 text-white md:hidden">
         <div className="flex flex-col xs:flex-row flex-wrap items-center justify-between gap-2 xs:gap-4">
           <div>
             <p className="text-sm text-white/80">Total Quotations</p>

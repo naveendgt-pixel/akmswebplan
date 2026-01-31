@@ -183,83 +183,30 @@ export default function OrdersPage() {
               
               return (
                 <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-                  {/* Order Info Row */}
-                  <div className="flex flex-col xs:flex-row flex-wrap items-start xs:items-center justify-between gap-2 xs:gap-4 px-2 xs:px-4 py-2 xs:py-3 border-b border-[var(--border)]">
-                    <div className="flex items-center gap-2 xs:gap-4 min-w-0">
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="font-semibold text-[var(--primary)] hover:underline truncate"
-                      >
-                        {order.order_number}
-                      </Link>
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Link href={`/orders/${order.id}`} className="font-semibold text-[var(--primary)] hover:underline truncate">{order.order_number}</Link>
                       <div className="min-w-0">
                         <p className="font-medium text-[var(--foreground)] truncate">{order.customers?.[0]?.name || "—"}</p>
                         <p className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.phone || ""}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col xs:flex-row items-end xs:items-center gap-2 xs:gap-4">
-                      <div className="text-right min-w-[80px]">
-                        <p className="text-[var(--foreground)]">{order.event_type}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">{formatDate(order.event_date)}</p>
-                      </div>
-                      <div className="text-right min-w-[100px]">
-                        <p className="font-bold text-[var(--primary)]">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</p>
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>
-                          {order.payment_status}
-                        </span>
-                      </div>
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] whitespace-nowrap"
-                      >
-                        View
-                      </Link>
-                    </div>
-                  </div>
-                  
-                  {/* Workflow Status - Prominent Section */}
-                  <div className={`px-2 xs:px-4 py-3 xs:py-4 ${allCompleted ? "bg-gradient-to-r from-[var(--success)]/10 to-[var(--success)]/5 border-t-2 border-[var(--success)]" : "bg-gradient-to-r from-[var(--primary)]/10 to-[var(--accent)]/10 border-t-2 border-[var(--primary)]"}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 xs:gap-3 mb-2 xs:mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-lg ${allCompleted ? "text-[var(--success)]" : "text-[var(--primary)]"}`}>📋</span>
-                        <span className={`text-sm font-bold ${allCompleted ? "text-[var(--success)]" : "text-[var(--primary)]"}`}>
-                          WORKFLOW STATUS
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`h-2 w-24 sm:w-32 rounded-full ${allCompleted ? "bg-[var(--success)]/20" : "bg-[var(--muted)]"} overflow-hidden`}>
-                          <div 
-                            className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`}
-                            style={{ width: `${(completedStages / workflowStages.length) * 100}%` }}
-                          />
+
+                    <div className="flex-1 flex items-center gap-4 min-w-0">
+                      <div className="text-sm text-[var(--foreground)] truncate">{order.event_type} • {formatDate(order.event_date)}</div>
+                      <div className="text-sm font-bold text-[var(--primary)] whitespace-nowrap">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</div>
+                      <div className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>{order.payment_status}</div>
+
+                      <div className="flex items-center gap-2 min-w-[120px]">
+                        <div className="h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`} style={{ width: `${(completedStages / workflowStages.length) * 100}%` }} />
                         </div>
-                        <span className={`text-sm font-bold ${allCompleted ? "text-[var(--success)]" : "text-[var(--primary)]"}`}>
-                          {completedStages}/{workflowStages.length}
-                        </span>
+                        <div className="text-xs text-[var(--muted-foreground)] whitespace-nowrap">{completedStages}/{workflowStages.length}</div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1 xs:gap-2">
-                      {workflowStages.map((stage) => {
-                        const status = workflowData[stage] || "No";
-                        const isComplete = status === "Yes" || status === "Not Needed";
-                        return (
-                          <div
-                            key={stage}
-                            className={`flex flex-col items-center p-2 rounded-xl text-center transition-all ${
-                              isComplete 
-                                ? "bg-[var(--success)]/10 border-2 border-[var(--success)] shadow-sm" 
-                                : "bg-[var(--danger)]/10 border-2 border-[var(--danger)]/50 shadow-sm"
-                            }`}
-                          >
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm text-white mb-1 ${isComplete ? "bg-[var(--success)]" : "bg-[var(--danger)]"}`}>
-                              {isComplete ? "✓" : "✗"}
-                            </span>
-                            <span className={`text-[10px] font-semibold leading-tight ${isComplete ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>
-                              {stage}
-                            </span>
-                          </div>
-                        );
-                      })}
+
+                    <div className="flex-shrink-0">
+                      <Link href={`/orders/${order.id}`} className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] whitespace-nowrap">View</Link>
                     </div>
                   </div>
                 </div>

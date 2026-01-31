@@ -305,7 +305,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
   const additionalItems = items.filter(i => i.category === "Additional");
 
   return (
-    <div className="flex flex-col gap-6 px-2 sm:px-4 md:px-8 max-w-6xl w-full mx-auto">
+    <div className="flex flex-col gap-6 px-2 sm:px-4 md:px-8 max-w-6xl w-full mx-auto pb-24 lg:pb-6">
       {/* Page Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -764,8 +764,8 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         </div>
       </SectionCard>
 
-      {/* Save Button */}
-      <div className="flex flex-col sm:flex-row justify-end gap-3 pb-6">
+      {/* Save Button (desktop/tablet) - hidden on small screens because mobile uses fixed bar */}
+      <div className="hidden lg:flex lg:flex-row justify-end gap-3 pb-6">
         <Link
           href="/quotations"
           className="inline-flex h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)] transition-all"
@@ -789,7 +789,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Mobile fixed total bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-3 z-40 lg:hidden">
+      <div style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-4 z-50 shadow-lg lg:hidden">
         <div className="max-w-6xl mx-auto px-2 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs text-[var(--muted-foreground)]">Total Amount</div>

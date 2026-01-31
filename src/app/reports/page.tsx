@@ -116,17 +116,17 @@ export default function ReportsPage() {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #6366f1; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #5b1e2d; }
     .logo { font-size: 28px; font-weight: bold; color: #6366f1; }
     .logo-sub { font-size: 12px; color: #64748b; }
     .doc-info { text-align: right; }
     .doc-title { font-size: 20px; font-weight: bold; color: #1e293b; }
     .doc-period { font-size: 12px; color: #64748b; margin-top: 4px; }
     .section { margin-bottom: 25px; }
-    .section-title { font-size: 14px; font-weight: 600; color: #6366f1; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 14px; font-weight: 600; color: #5b1e2d; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
     .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
     .summary-box { padding: 15px; border-radius: 8px; text-align: center; }
-    .summary-revenue { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+    .summary-revenue { background: linear-gradient(135deg, #5b1e2d, #8b5cf6); color: white; }
     .summary-paid { background: #dcfce7; }
     .summary-expense { background: #fef2f2; }
     .summary-profit { background: ${netProfit >= 0 ? "#dbeafe" : "#fef2f2"}; }
@@ -146,7 +146,7 @@ export default function ReportsPage() {
 <body>
   <div class="header">
     <div>
-      <div class="logo">Aura Knot</div>
+      <img src="${window.location.origin}/ak-logo-final.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" />
       <div class="logo-sub">Photography & Events</div>
     </div>
     <div class="doc-info">

@@ -107,9 +107,19 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
     }).format(amount);
   };
 
-  // Group items by category
+  // Normalize and group items by canonical category names to ensure consistent ordering
+  const mapCategory = (raw: string | undefined) => {
+    const c = (raw || "").toLowerCase();
+    if (/photo|photograph/i.test(c)) return "Photography";
+    if (/album/i.test(c)) return "Album";
+    if (/video|videography/i.test(c)) return "Videography";
+    if (/additional|addon|add[- ]?service/i.test(c)) return "Additional Services";
+    if (/print|gift|gifts|prints|merch/i.test(c)) return "Print & Gifts";
+    return "Other";
+  };
+
   const groupedItems = items.reduce((acc, item) => {
-    const category = item.category || "Other";
+    const category = mapCategory(item.category);
     if (!acc[category]) acc[category] = [];
     acc[category].push(item);
     return acc;
@@ -117,9 +127,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
 
   const categoryIcons: Record<string, string> = {
     Photography: "📷",
+    Album: "📚",
     Videography: "🎬",
     "Additional Services": "✨",
-    Album: "📚",
+    "Print & Gifts": "🎁",
     Other: "📌",
   };
 
@@ -129,11 +140,37 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
     return acc;
   }, {} as Record<string, number>);
 
-  // Handle Print/PDF - Opens clean print window
-  const handlePrint = () => {
+  // Desired order for rendering categories
+  const orderedCategories = ["Photography", "Album", "Videography", "Additional Services", "Print & Gifts", "Other"];
+
+  // Handle Print/PDF - try programmatic PDF via html2pdf, fallback to print window
+  const handlePrint = async () => {
     if (!quotation) return;
-    
-    const itemsHtml = Object.entries(groupedItems).map(([category, catItems]) => `
+
+    // Try programmatic pdf generation using html2pdf.js
+    try {
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = (html2pdfModule && (html2pdfModule as any).default) || html2pdfModule;
+      const element = document.getElementById('pdf-root');
+      if (element && html2pdf) {
+        const opt = {
+          margin: [10, 10, 10, 10],
+          filename: `${quotation.quotation_number}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        } as any;
+        await html2pdf().set(opt).from(element).save();
+        return;
+      }
+    } catch (err) {
+      console.debug('html2pdf not available or failed, falling back to print', err);
+    }
+
+    const itemsHtml = orderedCategories.map((category) => {
+      const catItems = groupedItems[category] || [];
+      if (catItems.length === 0) return '';
+      return `
       <tr class="category-row">
         <td colspan="${showPrices ? 4 : 3}">${categoryIcons[category] || "📌"} ${category} Services</td>
       </tr>
@@ -145,7 +182,8 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           ${showPrices ? `<td class="amount">${formatCurrency(item.total_price)}</td>` : ''}
         </tr>
       `).join('')}
-    `).join('');
+    `;
+    }).join('');
 
     const summaryHtml = showPrices ? `
       <div class="section">
@@ -555,7 +593,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           
           {/* PDF Preview */}
           <div 
-            className="bg-white shadow-xl rounded-lg overflow-hidden"
+            id="pdf-root" className="bg-white shadow-xl rounded-lg overflow-hidden"
             style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}
           >
             <div className="p-4 sm:p-8">
@@ -630,23 +668,27 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(groupedItems).map(([category, catItems]) => (
-                        <React.Fragment key={`cat-${category}`}>
-                          <tr className="bg-[#e6c9a9]">
-                            <td colSpan={showPrices ? 4 : 3} className="px-3 py-2 font-bold text-[#5b1e2d] text-xs uppercase">
-                              {categoryIcons[category] || "📌"} {category} Services
-                            </td>
-                          </tr>
-                          {catItems.map((item) => (
-                            <tr key={item.id} className="even:bg-[#faf6f2] odd:bg-white">
-                              <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">{item.description}</td>
-                              <td className="px-3 py-2 border-b border-[#e6c9a9] text-center text-gray-900">{item.quantity}</td>
-                              <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">-</td>
-                              {showPrices && <td className="px-3 py-2 border-b border-[#e6c9a9] text-right text-gray-900">{formatCurrency(item.total_price)}</td>}
+                      {orderedCategories.map((category) => {
+                        const catItems = groupedItems[category] || [];
+                        if (catItems.length === 0) return null;
+                        return (
+                          <React.Fragment key={`cat-${category}`}>
+                            <tr className="bg-[#e6c9a9]">
+                              <td colSpan={showPrices ? 4 : 3} className="px-3 py-2 font-bold text-[#5b1e2d] text-xs uppercase">
+                                {categoryIcons[category] || "📌"} {category} Services
+                              </td>
                             </tr>
-                          ))}
-                        </React.Fragment>
-                      ))}
+                            {catItems.map((item) => (
+                              <tr key={item.id} className="even:bg-[#faf6f2] odd:bg-white">
+                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">{item.description}</td>
+                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-center text-gray-900">{item.quantity}</td>
+                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">-</td>
+                                {showPrices && <td className="px-3 py-2 border-b border-[#e6c9a9] text-right text-gray-900">{formatCurrency(item.total_price)}</td>}
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

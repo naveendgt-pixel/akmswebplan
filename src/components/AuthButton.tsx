@@ -7,6 +7,8 @@ import { isAuthorizedEmail } from "@/lib/auth";
 export default function AuthButton() {
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(true);
+  const oauthDisabled = typeof process !== 'undefined' && !!process.env.NEXT_PUBLIC_DISABLE_OAUTH &&
+    (process.env.NEXT_PUBLIC_DISABLE_OAUTH === '1' || process.env.NEXT_PUBLIC_DISABLE_OAUTH?.toLowerCase() === 'true');
 
   useEffect(() => {
     if (!supabase) return;
@@ -40,10 +42,17 @@ export default function AuthButton() {
   }, []);
 
   const handleSignIn = async () => {
+    if (oauthDisabled) {
+      // eslint-disable-next-line no-console
+      console.warn('OAuth sign-in disabled via NEXT_PUBLIC_DISABLE_OAUTH');
+      return;
+    }
     if (!supabase) return;
     try {
-      // build redirect URL: prefer NEXT_PUBLIC_SITE_URL when available (useful on Vercel)
-      const siteOrigin = (process.env.NEXT_PUBLIC_SITE_URL as string) || (typeof window !== "undefined" ? window.location.origin : "");
+      // build redirect URL: use NEXT_PUBLIC_SITE_URL only in production, otherwise use current origin (prevents dev -> Vercel redirect)
+      const siteOrigin = (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL)
+        ? (process.env.NEXT_PUBLIC_SITE_URL as string)
+        : (typeof window !== "undefined" ? window.location.origin : "");
       const redirectTo = siteOrigin ? `${siteOrigin.replace(/\/$/, "")}/dashboard` : undefined;
       // eslint-disable-next-line no-console
       console.debug("Starting Google OAuth sign-in", { redirectTo });
@@ -85,7 +94,9 @@ export default function AuthButton() {
       <button
         type="button"
         onClick={handleSignIn}
-        className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 xs:px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm transition-all duration-200 hover:bg-[var(--secondary)] hover:shadow-md"
+        disabled={oauthDisabled}
+        className={`inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 xs:px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm transition-all duration-200 ${oauthDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[var(--secondary)] hover:shadow-md'}`}
+        title={oauthDisabled ? 'OAuth sign-in is disabled in this environment' : undefined}
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
