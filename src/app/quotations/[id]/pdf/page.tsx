@@ -192,33 +192,29 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Quotation - ${quotation.quotation_number} | Aura Knot</title>
-        <style>
+          <style>
           @page { 
             size: A4; 
-            margin: 15mm; 
+            margin: 10mm; 
           }
           @media print {
-            @page {
-              margin-top: 0;
-              margin-bottom: 0;
-            }
-            body {
-              padding-top: 15mm;
-              padding-bottom: 15mm;
-            }
+            @page { margin: 10mm; }
+            html, body { width: 210mm; height: 297mm; }
+            body { padding: 0; }
+            .container { width: 210mm; }
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #fff;
             color: #1e293b;
-            padding: 30px;
+            padding: 10mm;
             line-height: 1.5;
             font-size: 12px;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .container { max-width: 750px; margin: 0 auto; }
+          .container { width: 210mm; max-width: 100%; margin: 0 auto; }
           .header {
             display: flex;
             justify-content: space-between;
@@ -336,7 +332,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
             body { padding: 0; }
             .container { max-width: 100%; }
           }
-        </style>
+          </style>
       </head>
       <body>
         <div class="container">
@@ -549,6 +545,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       {/* Preview Area */}
       <div className="pt-20 pb-10 px-2 sm:px-4">
         <div className="max-w-4xl mx-auto">
+          <div className="text-sm text-gray-500 text-center mb-3">When saving as PDF, uncheck "Headers and footers" in the print dialog to avoid printing page URL/header details.</div>
           {/* Preview Label */}
           <div className="text-center mb-4">
             <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">

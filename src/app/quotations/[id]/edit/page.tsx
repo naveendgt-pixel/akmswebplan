@@ -788,6 +788,35 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         </button>
       </div>
 
+      {/* Mobile fixed total bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-3 z-40 lg:hidden">
+        <div className="max-w-6xl mx-auto px-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-[var(--muted-foreground)]">Total Amount</div>
+            <div className="text-lg font-bold text-indigo-600">₹{totalAmount.toLocaleString("en-IN")}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/quotations"
+              className="hidden sm:inline-flex h-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)] transition-all"
+            >
+              Cancel
+            </Link>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 text-sm font-semibold text-white shadow-lg transition-all disabled:opacity-50"
+            >
+              {saving ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+              ) : (
+                "Save"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
