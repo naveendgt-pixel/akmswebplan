@@ -42,13 +42,14 @@ export default function AuthButton() {
   const handleSignIn = async () => {
     if (!supabase) return;
     try {
+      // build redirect URL: prefer NEXT_PUBLIC_SITE_URL when available (useful on Vercel)
+      const siteOrigin = (process.env.NEXT_PUBLIC_SITE_URL as string) || (typeof window !== "undefined" ? window.location.origin : "");
+      const redirectTo = siteOrigin ? `${siteOrigin.replace(/\/$/, "")}/dashboard` : undefined;
       // eslint-disable-next-line no-console
-      console.debug("Starting Google OAuth sign-in", { redirectTo: `${window.location.origin}/dashboard` });
+      console.debug("Starting Google OAuth sign-in", { redirectTo });
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
+        options: redirectTo ? { redirectTo } : undefined,
       });
     } catch (err) {
       // eslint-disable-next-line no-console
