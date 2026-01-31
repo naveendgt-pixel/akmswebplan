@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navItems } from "@/lib/constants";
 import AuthButton from "@/components/AuthButton";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { isAuthorizedEmail } from "@/lib/auth";
 
@@ -37,6 +37,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!supabase) return;
     let mounted = true;
     const syncSession = async () => {
+      if (!supabase) return;
       const { data } = await supabase.auth.getSession();
       const sessionEmail = data.session?.user.email ?? null;
       if (!mounted) return;
@@ -80,6 +81,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  return (
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col">
+      {/* Top Header */}
+      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-2 py-2 sm:gap-4 sm:px-4 sm:py-3 md:px-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)] lg:hidden"
@@ -123,10 +132,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <img src="/Untitled-1.png" alt="Aura Knot Logo" className="h-9 w-9 object-contain" />
                 <span className="sr-only">Aura Knot</span>
               </div>
-              <div>
-                <h1 className="text-lg font-semibold">Aura Knot</h1>
-                <p className="text-xs text-[var(--muted-foreground)]">Event Management</p>
-              </div>
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -135,19 +140,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               ✕
             </button>
           </div>
-          <nav className="flex-1 overflow-y-auto p-3">
-            <div className="mb-2 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-                Navigation
-              </p>
-            </div>
+          <nav className="flex flex-col gap-1 p-4">
             {navItems.map((item) => {
               const active = isActiveRoute(pathname, item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
                   className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                     active
                       ? "bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white shadow-md shadow-[var(--primary)]/25"
