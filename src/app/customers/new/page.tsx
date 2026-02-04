@@ -35,11 +35,15 @@ const initialForm: CustomerForm = {
 export default function NewCustomerPage() {
   const router = useRouter();
   const [form, setForm] = useState<CustomerForm>(initialForm);
+  const [manualEventType, setManualEventType] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const handleChange = (field: keyof CustomerForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "eventType" && value === "Others") {
+      setManualEventType("");
+    }
   };
 
   const handleSubmit = async () => {
@@ -54,6 +58,10 @@ export default function NewCustomerPage() {
     }
     if (!form.eventType) {
       setMessage({ type: "error", text: "Please select an event type" });
+      return;
+    }
+    if (form.eventType === "Others" && !manualEventType.trim()) {
+      setMessage({ type: "error", text: "Please enter a custom event type" });
       return;
     }
     if (!form.eventStartDate) {
@@ -71,11 +79,12 @@ export default function NewCustomerPage() {
     try {
       if (!supabase) {
         // No Supabase - redirect with form data in URL
+        const eventTypeValue = form.eventType === "Others" ? manualEventType : form.eventType;
         const params = new URLSearchParams({
           customerName: form.name,
           customerPhone: form.phone,
           customerEmail: form.email,
-          eventType: form.eventType,
+          eventType: eventTypeValue,
           eventDate: form.eventStartDate,
           eventEndDate: form.eventEndDate,
           eventVenue: form.eventLocation,
@@ -88,6 +97,7 @@ export default function NewCustomerPage() {
       }
 
       // Save customer to Supabase
+      const eventTypeValue = form.eventType === "Others" ? manualEventType : form.eventType;
       const { data: customer, error: customerError } = await supabase
         .from("customers")
         .insert({
@@ -196,6 +206,17 @@ export default function NewCustomerPage() {
               ))}
             </select>
           </div>
+          {form.eventType === "Others" && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[var(--foreground)]">Custom Event Type <span className="text-red-500">*</span></label>
+              <input 
+                placeholder="Enter custom event type"
+                className={inputClass}
+                value={manualEventType}
+                onChange={(e) => setManualEventType(e.target.value)}
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Event Start Date <span className="text-red-500">*</span></label>
             <input 

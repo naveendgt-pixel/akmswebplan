@@ -23,6 +23,8 @@ export const eventTypes = [
   "Engagement",
   "Reception",
   "Wedding",
+  "Reception + Wedding",
+  "Wedding + Reception",
   "Engagement, Reception & Wedding",
   "Puberty",
   "Baby Shower (Maternity)",
