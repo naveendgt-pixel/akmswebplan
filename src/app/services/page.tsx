@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
-import { formatDate } from "@/lib/constants";
+import { formatDate, workflowStages } from "@/lib/constants";
 
 interface Quotation {
   id: string;
@@ -235,6 +235,11 @@ Thank you for choosing Aura Knot!
         if (!existingOrder) {
           // Create new order with sequential number
           const orderNumber = await getNextOrderNumber();
+          
+          // Initialize workflow status with all stages set to "No"
+          const initialWorkflow: Record<string, string> = {};
+          workflowStages.forEach(s => { initialWorkflow[s] = "No"; });
+          
           const { error: orderError } = await supabase
             .from("orders")
             .insert({
@@ -252,6 +257,7 @@ Thank you for choosing Aura Knot!
               status: "Confirmed",
               payment_status: "Pending",
               delivery_status: "Pending",
+              workflow_status: JSON.stringify(initialWorkflow),
             });
 
           if (orderError) {

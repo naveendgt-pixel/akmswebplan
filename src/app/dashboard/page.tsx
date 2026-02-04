@@ -29,6 +29,8 @@ interface RecentOrder {
   total_amount: number;
   payment_status: string;
   created_at: string;
+  event_end_date?: string;
+  balance_due?: number;
 }
 
 interface RecentQuotation {
@@ -60,6 +62,8 @@ export default function DashboardPage() {
   const [workflowSummary, setWorkflowSummary] = useState<Record<string, { completed: number; total: number }>>({});
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("This Month");
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -69,10 +73,41 @@ export default function DashboardPage() {
       }
 
       try {
-        // Get date ranges
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        let startDate: Date;
+        let endDate: Date = now;
+
+        // Calculate date ranges based on selected period
+        switch (period) {
+          case "This Month":
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            break;
+          case "Last Month":
+            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+            break;
+          case "This Quarter":
+            const currentQuarter = Math.floor(now.getMonth() / 3);
+            startDate = new Date(now.getFullYear(), currentQuarter * 3, 1);
+            endDate = new Date(now.getFullYear(), (currentQuarter + 1) * 3, 0, 23, 59, 59);
+            break;
+          case "This Year":
+            startDate = new Date(now.getFullYear(), 0, 1);
+            endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+            break;
+          case "Last Year":
+            startDate = new Date(now.getFullYear() - 1, 0, 1);
+            endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+            break;
+          case "Custom":
+            startDate = customDateStart ? new Date(customDateStart) : new Date(now.getFullYear(), 0, 1);
+            endDate = customDateEnd ? new Date(customDateEnd + "T23:59:59") : now;
+            break;
+          default:
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        }
 
         // Fetch orders
         const { data: orders } = await supabase
@@ -89,36 +124,85 @@ export default function DashboardPage() {
         // Fetch expenses
         const { data: expenses } = await supabase
           .from("expenses")
-          .select("amount");
+          .select("amount, order_id");
 
         const allOrders = orders || [];
         const allQuotations = quotations || [];
         const allExpenses = expenses || [];
 
-        // Calculate stats
-        const totalOrders = allOrders.length;
-        const completedOrders = allOrders.filter(o => {
+        // Outstanding balance and revenue - only count orders where event_end_date has passed
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Helper function to parse date string and normalize to start of day
+        const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
+          if (!dateStr) return null;
+          const date = new Date(dateStr);
+          date.setHours(0, 0, 0, 0);
+          return date;
+        };
+
+        // Filter all orders where event has ended
+        const completedEvents = allOrders.filter(o => {
+          const eventEndDate = o.event_end_date ? getDateAtStartOfDay(o.event_end_date) : (o.event_date ? getDateAtStartOfDay(o.event_date) : null);
+          return eventEndDate && eventEndDate < today;
+        });
+
+        // Calculate stats only for completed events
+        const totalOrders = completedEvents.length;
+        const completedOrders = completedEvents.filter(o => {
           try {
             const workflow = o.workflow_status ? JSON.parse(o.workflow_status) : {};
-            return workflowStages.every(s => workflow[s] === "Yes" || workflow[s] === "Not Needed");
+            // Order is completed only if ALL workflow stages are "Yes" (not "Not Needed" or "No")
+            const allCompleted = workflowStages.every(s => {
+              const status = workflow[s];
+              return status === "Yes";
+            });
+            return allCompleted;
           } catch {
             return false;
           }
         }).length;
         const pendingOrders = totalOrders - completedOrders;
 
-        const monthlyOrders = allOrders.filter(o => new Date(o.created_at) >= startOfMonth);
-        const yearlyOrders = allOrders.filter(o => new Date(o.created_at) >= startOfYear);
+        // Filter orders by period using event_date for accurate monthly/yearly reports
+        const periodOrders = completedEvents.filter(o => {
+          const orderDate = new Date(o.event_date || o.created_at);
+          return orderDate >= startDate && orderDate <= endDate;
+        });
 
-        const monthlyRevenue = monthlyOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-        const yearlyRevenue = yearlyOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-        const totalExpensesAmount = allExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+        // For yearly revenue, use the selected period's date range
+        const yearlyOrders = periodOrders;
+
+        // Filter quotations by period using event_date
+        const periodQuotations = allQuotations.filter(q => {
+          const quotationDate = new Date(q.event_date || q.created_at);
+          return quotationDate >= startDate && quotationDate <= endDate;
+        });
+
+        // Revenue calculation for completed period orders
+        const completedPeriodOrders = periodOrders;
+
+        // Revenue calculation for completed yearly orders
+        const completedYearlyOrders = yearlyOrders;
+
+        const monthlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        const yearlyRevenue = completedYearlyOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        
+        // Filter expenses by completed orders only
+        const completedOrderIds = new Set(completedYearlyOrders.map(o => o.id));
+        const filteredExpenses = allExpenses.filter(e => e.order_id && completedOrderIds.has(e.order_id));
+        const totalExpensesAmount = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
         const totalProfit = yearlyRevenue - totalExpensesAmount;
-        const outstandingBalance = allOrders.reduce((sum, o) => sum + (o.balance_due || 0), 0);
 
-        const totalQuotations = allQuotations.length;
-        const confirmedQuotations = allQuotations.filter(q => q.status === "Confirmed").length;
-        const pendingQuotations = allQuotations.filter(q => q.status === "Pending").length;
+        // Outstanding balance - only count orders where event_end_date has passed
+        const outstandingBalance = completedEvents.reduce((sum, o) => {
+          return sum + (o.balance_due || 0);
+        }, 0);
+
+        const totalQuotations = periodQuotations.length;
+        const confirmedQuotations = periodQuotations.filter(q => q.status === "Confirmed").length;
+        const pendingQuotations = periodQuotations.filter(q => q.status === "Pending").length;
 
         // Calculate workflow summary
         const workflowStats: Record<string, { completed: number; total: number }> = {};
@@ -126,11 +210,13 @@ export default function DashboardPage() {
           workflowStats[stage] = { completed: 0, total: totalOrders };
         });
 
-        allOrders.forEach(order => {
+        completedEvents.forEach(order => {
           try {
             const workflow = order.workflow_status ? JSON.parse(order.workflow_status) : {};
             workflowStages.forEach(stage => {
-              if (workflow[stage] === "Yes" || workflow[stage] === "Not Needed") {
+              const status = workflow[stage];
+              // Only count "Yes" as completed work (not "Not Needed" or "No")
+              if (status === "Yes") {
                 workflowStats[stage].completed++;
               }
             });
@@ -164,7 +250,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [period]);
+  }, [period, customDateStart, customDateEnd]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(amount);
@@ -205,7 +291,7 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Overview</h2>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select 
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
@@ -215,7 +301,28 @@ export default function DashboardPage() {
             <option>Last Month</option>
             <option>This Quarter</option>
             <option>This Year</option>
+            <option>Last Year</option>
+            <option>Custom</option>
           </select>
+          {period === "Custom" && (
+            <>
+              <input
+                type="date"
+                value={customDateStart}
+                onChange={(e) => setCustomDateStart(e.target.value)}
+                className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
+                placeholder="Start Date"
+              />
+              <span className="text-sm text-[var(--muted-foreground)]">to</span>
+              <input
+                type="date"
+                value={customDateEnd}
+                onChange={(e) => setCustomDateEnd(e.target.value)}
+                className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
+                placeholder="End Date"
+              />
+            </>
+          )}
         </div>
       </div>
 

@@ -81,6 +81,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
   const [calendars, setCalendars] = useState(0);
   const [frames, setFrames] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmountManual, setDiscountAmountManual] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
 
   // Fetch quotation data
@@ -139,6 +140,13 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
         setCalendars(quotationData.calendars || 0);
         setFrames(quotationData.frames || 0);
         setDiscountPercent(quotationData.discount_percent || 0);
+        // Initialize manual discount amount if it differs from calculated
+        if (quotationData.discount_amount && quotationData.discount_percent) {
+          const calculated = Math.round((quotationData.subtotal * quotationData.discount_percent) / 100);
+          if (Math.abs(quotationData.discount_amount - calculated) > 1) {
+            setDiscountAmountManual(quotationData.discount_amount);
+          }
+        }
         setNotes(quotationData.notes || "");
 
       } catch (error) {
@@ -152,9 +160,10 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
     fetchQuotation();
   }, [resolvedParams.id]);
 
-  // Calculate totals
+  // Calculate totals with round-off for discount
   const subtotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
-  const discountAmount = (subtotal * discountPercent) / 100;
+  const calculatedDiscountAmount = Math.round((subtotal * discountPercent) / 100);
+  const discountAmount = discountAmountManual !== null ? discountAmountManual : calculatedDiscountAmount;
   const totalAmount = subtotal - discountAmount;
 
   // Item handlers
@@ -706,16 +715,39 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
       <SectionCard title="Pricing & Notes" description="Discount and additional notes">
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           <div className="space-y-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[var(--foreground)]">Discount (%)</label>
-              <input
-                type="number"
-                className={inputClass}
-                min="0"
-                max="100"
-                value={discountPercent}
-                onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Discount (%)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={discountPercent}
+                  onChange={(e) => {
+                    setDiscountPercent(parseFloat(e.target.value) || 0);
+                    setDiscountAmountManual(null); // Reset manual amount when percent changes
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Discount Amount (₹)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  min="0"
+                  step="1"
+                  value={discountAmount}
+                  onChange={(e) => {
+                    const val = Math.round(parseFloat(e.target.value) || 0);
+                    setDiscountAmountManual(val);
+                  }}
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Calculated: ₹{calculatedDiscountAmount.toLocaleString("en-IN")} • Edit to override
+                </p>
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--foreground)]">Notes</label>

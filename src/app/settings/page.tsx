@@ -1,10 +1,61 @@
 "use client";
 
+import { useState } from "react";
 import SectionCard from "@/components/SectionCard";
 import { useTheme } from "@/lib/ThemeContext";
+import { paymentTypes } from "@/lib/constants";
 
 export default function SettingsPage() {
   const { theme, setTheme, colorTheme, setColorTheme, resolvedTheme } = useTheme();
+  const [whatsappMessages, setWhatsappMessages] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_messages");
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [editingType, setEditingType] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState("");
+
+  const availableFields = [
+    { placeholder: "{customerName}", description: "Customer name" },
+    { placeholder: "{orderNumber}", description: "Order ID" },
+    { placeholder: "{paymentAmount}", description: "Payment amount received" },
+    { placeholder: "{totalBudget}", description: "Total order budget" },
+    { placeholder: "{balanceDue}", description: "Remaining balance" },
+    { placeholder: "{paymentMethod}", description: "Payment method (Cash, UPI, etc.)" },
+    { placeholder: "{eventType}", description: "Event type (Wedding, Reception, etc.)" },
+    { placeholder: "{eventDate}", description: "Event date" },
+  ];
+
+  const defaultMessages: Record<string, string> = {
+    "Initial Advance": `Hi {customerName},\n\nThank you for your Initial Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're excited to work on your {eventType}!\n\n- Aura Knot`,
+    "Function Advance": `Hi {customerName},\n\nWe've received your Function Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're all set for your event!\n\n- Aura Knot`,
+    "Printing Advance": `Hi {customerName},\n\nThank you for your Printing Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nYour album printing will be prioritized!\n\nBalance Remaining: {balanceDue}\n\n- Aura Knot`,
+    "Final Payment": `Hi {customerName},\n\nThank you for the Final Payment of {paymentAmount} for Order #{orderNumber}.\n\n✓ Payment Complete!\nTotal Paid: {totalBudget}\n\nYour deliverables will be prepared shortly.\n\n- Aura Knot`,
+    "Other": `Hi {customerName},\n\nWe've received a payment of {paymentAmount} for Order #{orderNumber}.\n\nPayment Method: {paymentMethod}\nBalance Remaining: {balanceDue}\n\n- Aura Knot`
+  };
+
+  const handleSaveMessage = (paymentType: string) => {
+    const updated = { ...whatsappMessages, [paymentType]: editingMessage };
+    setWhatsappMessages(updated);
+    localStorage.setItem("whatsapp_messages", JSON.stringify(updated));
+    setEditingType(null);
+    alert("Message saved successfully!");
+  };
+
+  const handleResetMessage = (paymentType: string) => {
+    if (confirm(`Reset ${paymentType} message to default?`)) {
+      const updated = { ...whatsappMessages };
+      delete updated[paymentType];
+      setWhatsappMessages(updated);
+      localStorage.setItem("whatsapp_messages", JSON.stringify(updated));
+      alert("Message reset to default!");
+    }
+  };
+
+  const getMessageContent = (paymentType: string) => {
+    return whatsappMessages[paymentType] || defaultMessages[paymentType] || "";
+  };
 
   const colorThemes = [
     { name: "Indigo", value: "indigo" as const, color: "bg-indigo-500" },
@@ -112,6 +163,91 @@ export default function SettingsPage() {
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
               Team access control and role-based permissions
             </p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="WhatsApp Integration" description="Customize payment notification messages">
+        <div className="space-y-6">
+          {/* Available Fields Reference */}
+          <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Available Message Fields</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {availableFields.map((field) => (
+                <div key={field.placeholder} className="text-sm">
+                  <code className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded font-mono text-xs">
+                    {field.placeholder}
+                  </code>
+                  <span className="text-blue-700 dark:text-blue-300 ml-2">- {field.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Payment Type Messages */}
+          <div className="space-y-4">
+            {paymentTypes.map((paymentType) => (
+              <div key={paymentType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-[var(--foreground)]">{paymentType}</h4>
+                  <div className="flex gap-2">
+                    {editingType === paymentType ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveMessage(paymentType)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingType(null)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingType(paymentType);
+                            setEditingMessage(getMessageContent(paymentType));
+                          }}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleResetMessage(paymentType)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {editingType === paymentType ? (
+                  <textarea
+                    value={editingMessage}
+                    onChange={(e) => setEditingMessage(e.target.value)}
+                    className="w-full h-32 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    placeholder="Enter custom message..."
+                  />
+                ) : (
+                  <div className="bg-[var(--secondary)]/50 rounded-lg p-3 text-sm whitespace-pre-wrap text-[var(--muted-foreground)] font-mono border border-[var(--border)]">
+                    {getMessageContent(paymentType)}
+                  </div>
+                )}
+
+                {whatsappMessages[paymentType] && editingType !== paymentType && (
+                  <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    ✓ Using custom message
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </SectionCard>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import SectionCard from "@/components/SectionCard";
-import { eventTypes, reportPeriods, formatDate } from "@/lib/constants";
+import { eventTypes, formatDate } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 
 interface OrderSummary {
@@ -11,6 +11,7 @@ interface OrderSummary {
   customer_name: string;
   event_type: string;
   event_date: string;
+  event_end_date: string | null;
   total_amount: number;
   amount_paid: number;
   balance_due: number;
@@ -25,9 +26,19 @@ interface ExpenseSummary {
 export default function ReportsPage() {
   const [period, setPeriod] = useState("");
   const [eventType, setEventType] = useState("");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [expenses, setExpenses] = useState<ExpenseSummary[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Helper function to parse date string and normalize to start of day
+  const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  };
 
   // Fetch report data
   const fetchReportData = async () => {
@@ -38,49 +49,86 @@ export default function ReportsPage() {
       // Calculate date range based on period
       const now = new Date();
       let startDate: Date | null = null;
+      let endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
       
-      switch (period) {
-        case "This Week":
-          startDate = new Date(now);
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case "This Month":
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case "Last Month":
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          break;
-        case "This Quarter":
-          const quarter = Math.floor(now.getMonth() / 3);
-          startDate = new Date(now.getFullYear(), quarter * 3, 1);
-          break;
-        case "This Year":
-          startDate = new Date(now.getFullYear(), 0, 1);
-          break;
-        case "Last Year":
-          startDate = new Date(now.getFullYear() - 1, 0, 1);
-          break;
+      // Handle custom date range
+      if (period === "Custom") {
+        if (customStartDate) {
+          startDate = new Date(customStartDate);
+          startDate.setHours(0, 0, 0, 0);
+        }
+        if (customEndDate) {
+          endDate = new Date(customEndDate);
+          endDate.setHours(23, 59, 59, 999);
+        }
+      } else {
+        switch (period) {
+          case "This Week":
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - 7);
+            startDate.setHours(0, 0, 0, 0);
+            break;
+          case "This Month":
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+          case "Last Month":
+            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+          case "This Quarter":
+            const quarter = Math.floor(now.getMonth() / 3);
+            startDate = new Date(now.getFullYear(), quarter * 3, 1);
+            break;
+          case "This Year":
+            startDate = new Date(now.getFullYear(), 0, 1);
+            break;
+          case "Last Year":
+            startDate = new Date(now.getFullYear() - 1, 0, 1);
+            endDate = new Date(now.getFullYear() - 1, 11, 31);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        }
       }
 
-      // Build query
-      let query = supabase.from("orders").select("id, order_number, customer_name, event_type, event_date, total_amount, amount_paid, balance_due, status");
+      // Fetch all orders with event dates
+      let query = supabase.from("orders").select("id, order_number, customer_name, event_type, event_date, event_end_date, total_amount, amount_paid, balance_due, status");
       
-      if (startDate) {
-        query = query.gte("created_at", startDate.toISOString());
-      }
       if (eventType) {
         query = query.eq("event_type", eventType);
       }
 
-      const { data: ordersData } = await query.order("created_at", { ascending: false });
-      setOrders(ordersData || []);
+      const { data: ordersData } = await query.order("event_date", { ascending: false });
+      
+      // Filter orders: only include completed events (event_end_date has passed)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const completedEventOrders = (ordersData || []).filter(o => {
+        const eventEndDate = o.event_end_date ? getDateAtStartOfDay(o.event_end_date) : (o.event_date ? getDateAtStartOfDay(o.event_date) : null);
+        return eventEndDate && eventEndDate < today;
+      });
 
-      // Fetch expenses grouped by category
-      const { data: expensesData } = await supabase.from("expenses").select("category, amount");
+      // Filter by date range using event_date
+      const periodFilteredOrders = completedEventOrders.filter(o => {
+        const orderDate = new Date(o.event_date);
+        orderDate.setHours(0, 0, 0, 0);
+        return startDate ? (orderDate >= startDate && orderDate <= endDate) : true;
+      });
+
+      setOrders(periodFilteredOrders);
+
+      // Fetch expenses related to completed orders only
+      const completedOrderIds = new Set(periodFilteredOrders.map(o => o.id));
+      const { data: expensesData } = await supabase.from("expenses").select("category, amount, order_id");
+      
+      // Filter expenses to only include those from completed orders in the period
+      const filteredExpensesData = (expensesData || []).filter(e => e.order_id && completedOrderIds.has(e.order_id));
       
       // Group expenses by category
       const expenseMap: Record<string, number> = {};
-      (expensesData || []).forEach((e: { category: string; amount: number }) => {
+      (filteredExpensesData || []).forEach((e: { category: string; amount: number }) => {
         expenseMap[e.category] = (expenseMap[e.category] || 0) + e.amount;
       });
       
@@ -96,7 +144,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchReportData();
-  }, [period, eventType]);
+  }, [period, eventType, customStartDate, customEndDate]);
 
   // Calculate totals
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
@@ -304,9 +352,13 @@ export default function ReportsPage() {
               className="h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
             >
               <option value="">All Time</option>
-              {reportPeriods.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
+              <option value="This Week">This Week</option>
+              <option value="This Month">This Month</option>
+              <option value="Last Month">Last Month</option>
+              <option value="This Quarter">This Quarter</option>
+              <option value="This Year">This Year</option>
+              <option value="Last Year">Last Year</option>
+              <option value="Custom">Custom Date Range</option>
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -323,6 +375,28 @@ export default function ReportsPage() {
             </select>
           </div>
         </div>
+        {period === "Custom" && (
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[var(--foreground)]">Start Date</label>
+              <input 
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[var(--foreground)]">End Date</label>
+              <input 
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
+              />
+            </div>
+          </div>
+        )}
         <div className="mt-5 flex flex-wrap gap-3">
           <button 
             onClick={() => generatePDF("pnl")}

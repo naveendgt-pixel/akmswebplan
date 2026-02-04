@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { formatDate } from "@/lib/constants";
 
@@ -49,6 +50,7 @@ interface QuotationData {
 
 export default function QuotationPDFPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [quotation, setQuotation] = useState<QuotationData | null>(null);
   const [items, setItems] = useState<QuotationItem[]>([]);
@@ -147,6 +149,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
   const handlePrint = async () => {
     if (!quotation) return;
 
+    // Generate filename with quotation number and customer name
+    const customerName = quotation.customers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Customer';
+    const pdfFilename = `${quotation.quotation_number}_${customerName}.pdf`;
+
     // Try programmatic pdf generation using html2pdf.js
     try {
       const html2pdfModule = await import('html2pdf.js');
@@ -155,17 +161,23 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       if (element && html2pdf) {
         const opt = {
           margin: [10, 10, 10, 10],
-          filename: `${quotation.quotation_number}.pdf`,
+          filename: pdfFilename,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         } as any;
-        await html2pdf().set(opt).from(element).save();
+        
+        // Create a clone to avoid modifying original
+        const clone = element.cloneNode(true) as HTMLElement;
+        await html2pdf().set(opt).from(clone).save();
         return;
       }
     } catch (err) {
-      console.debug('html2pdf not available or failed, falling back to print', err);
+      console.debug('html2pdf error, attempting alternative method', err);
     }
+
+    // Fallback: Show alert with filename hint
+    alert(`Please save the file as: ${pdfFilename}\n\nThe browser will open print dialog. Select "Save as PDF" to download.`);
 
     const itemsHtml = orderedCategories.map((category) => {
       const catItems = groupedItems[category] || [];
@@ -215,7 +227,17 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       <div class="section">
         <div class="section-title">Package Total</div>
         <div class="summary-box">
-          <div class="summary-row total" style="border-top: none; margin-top: 0; padding-top: 0;">
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span>${formatCurrency(quotation.subtotal)}</span>
+          </div>
+          ${quotation.discount_amount > 0 ? `
+            <div class="summary-row discount">
+              <span>Discount (${quotation.discount_percent}%)</span>
+              <span>- ${formatCurrency(quotation.discount_amount)}</span>
+            </div>
+          ` : ''}
+          <div class="summary-row total" style="border-top: 2px solid #5b1e2d; margin-top: 8px; padding-top: 12px;">
             <span>Grand Total</span>
             <span class="value">${formatCurrency(quotation.total_amount)}</span>
           </div>
@@ -498,8 +520,8 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
     if (printWindow) {
       printWindow.document.write(printContent);
       printWindow.document.close();
-      // Change document title to empty to avoid showing it in print header
-      printWindow.document.title = ' ';
+      // Set document title to include filename for PDF save dialog
+      printWindow.document.title = pdfFilename.replace('.pdf', '');
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
@@ -523,7 +545,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
         <p className="text-gray-600 mb-4">Quotation not found</p>
         <button 
-          onClick={() => window.history.back()}
+          onClick={() => router.back()}
           className="px-4 py-2 bg-[#5b1e2d] text-white rounded-lg hover:bg-[#4a1624]"
         >
           Go Back
@@ -539,7 +561,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
             <button 
-              onClick={() => window.history.back()}
+              onClick={() => router.back()}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <span>←</span>
@@ -736,15 +758,21 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                         <span>Subtotal</span>
                         <span>{formatCurrency(quotation.subtotal)}</span>
                       </div>
-                      {quotation.discount_amount > 0 && (
-                        <div className="flex justify-between py-2 text-green-700">
-                          <span>Discount ({quotation.discount_percent}%)</span>
-                          <span>- {formatCurrency(quotation.discount_amount)}</span>
-                        </div>
-                      )}
                     </>
                   )}
-                  <div className={`flex justify-between py-3 text-lg font-bold ${showPrices ? 'border-t-2 border-[#5b1e2d] mt-2' : ''}`}>
+                  {!showPrices && (
+                    <div className="flex justify-between py-2 text-gray-900">
+                      <span>Subtotal</span>
+                      <span>{formatCurrency(quotation.subtotal)}</span>
+                    </div>
+                  )}
+                  {quotation.discount_amount > 0 && (
+                    <div className="flex justify-between py-2 text-green-700">
+                      <span>Discount ({quotation.discount_percent}%)</span>
+                      <span>- {formatCurrency(quotation.discount_amount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-3 text-lg font-bold border-t-2 border-[#5b1e2d] mt-2">
                     <span>Grand Total</span>
                     <span className="text-[#5b1e2d]">{formatCurrency(quotation.total_amount)}</span>
                   </div>

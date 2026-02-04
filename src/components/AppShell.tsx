@@ -195,6 +195,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
                   className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                     active
                       ? "bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white shadow-md shadow-[var(--primary)]/25"
@@ -284,6 +285,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Spacer for mobile bottom nav */}
       <div className="h-14 xs:h-16 lg:hidden" />
+
+      {/* Footer */}
+      <footer className="mt-12 border-t border-[var(--border)] bg-[var(--secondary)]/30 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center text-sm text-[var(--muted-foreground)]">
+            <p>© 2026 Aura Knot Technologies. All rights reserved.</p>
+            <p className="mt-1 text-xs">v1.0.0</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

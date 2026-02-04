@@ -47,6 +47,85 @@ const paymentMethods = ["Cash", "UPI", "Bank Transfer", "Card", "Cheque"];
 const paymentTypes = ["Initial Advance", "Function Advance", "Printing Advance", "Final Payment", "Other"];
 const expenseCategories = ["Travel", "Equipment", "Staff", "Printing", "Album", "Frame", "Miscellaneous"];
 
+// WhatsApp integration for payments
+const sendWhatsAppNotification = (phone: string, message: string) => {
+  let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+  if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+  const encodedMessage = encodeURIComponent(message);
+  window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+};
+
+// Generate payment type-specific WhatsApp message with custom templates
+const generatePaymentTypeMessage = (
+  customerName: string,
+  orderNumber: string,
+  paymentType: string,
+  amount: number,
+  totalAmount: number,
+  balanceDue: number,
+  paymentMethod: string,
+  eventType: string = "event",
+  eventDate: string = ""
+): string => {
+  const currency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
+  
+  // Get custom message from localStorage if available
+  let customMessages: Record<string, string> = {};
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("whatsapp_messages");
+    customMessages = saved ? JSON.parse(saved) : {};
+  }
+
+  // Use custom message if available, otherwise use default
+  let template = customMessages[paymentType] || defaultMessages[paymentType];
+
+  // Replace placeholders with actual values
+  template = template
+    .replace(/{customerName}/g, customerName)
+    .replace(/{orderNumber}/g, orderNumber)
+    .replace(/{paymentAmount}/g, currency(amount))
+    .replace(/{totalBudget}/g, currency(totalAmount))
+    .replace(/{balanceDue}/g, currency(balanceDue))
+    .replace(/{paymentMethod}/g, paymentMethod)
+    .replace(/{eventType}/g, eventType)
+    .replace(/{eventDate}/g, eventDate);
+
+  return template;
+};
+
+const defaultMessages: Record<string, string> = {
+  "Initial Advance": `Hi {customerName},\n\nThank you for your Initial Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're excited to work on your {eventType}!\n\n- Aura Knot`,
+  
+  "Function Advance": `Hi {customerName},\n\nWe've received your Function Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're all set for your event!\n\n- Aura Knot`,
+  
+  "Printing Advance": `Hi {customerName},\n\nThank you for your Printing Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nYour album printing will be prioritized!\n\nBalance Remaining: {balanceDue}\n\n- Aura Knot`,
+  
+  "Final Payment": `Hi {customerName},\n\nThank you for the Final Payment of {paymentAmount} for Order #{orderNumber}.\n\n✓ Payment Complete!\nTotal Paid: {totalBudget}\n\nYour deliverables will be prepared shortly.\n\n- Aura Knot`,
+  
+  "Other": `Hi {customerName},\n\nWe've received a payment of {paymentAmount} for Order #{orderNumber}.\n\nPayment Method: {paymentMethod}\nBalance Remaining: {balanceDue}\n\n- Aura Knot`
+};
+
+// Send WhatsApp message from payment card
+const handleSendWhatsAppFromPayment = (payment: Payment, order: Order | undefined) => {
+  if (!order?.customers?.phone) {
+    alert("Customer phone number not found");
+    return;
+  }
+
+  const paymentType = payment.notes?.split(":")[0] || "Other";
+  const whatsappMessage = generatePaymentTypeMessage(
+    order.customers.name,
+    order.order_number,
+    paymentType,
+    payment.amount,
+    order.total_amount,
+    order.balance_due,
+    payment.payment_method
+  );
+
+  sendWhatsAppNotification(order.customers.phone, whatsappMessage);
+};
+
 export default function PaymentsPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -55,6 +134,18 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"payments" | "expenses">("payments");
+  const [saving, setSaving] = useState(false);
+  
+  // Edit payment state
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    orderId: "",
+    amount: 0,
+    method: "Cash",
+    type: "Initial Advance",
+    reference: "",
+    notes: "",
+  });
   
   // Payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -76,8 +167,6 @@ export default function PaymentsPage() {
     category: "Miscellaneous",
     date: new Date().toISOString().split("T")[0],
   });
-
-  const [saving, setSaving] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -159,7 +248,7 @@ export default function PaymentsPage() {
       const { error } = await supabase.from("payments").insert({
         payment_number: paymentNumber,
         order_id: paymentForm.orderId,
-        customer_id: order?.customers ? null : null, // Will be linked through order
+        customer_id: order?.customers ? null : null,
         amount: paymentForm.amount,
         payment_method: paymentForm.method,
         payment_date: new Date().toISOString().split("T")[0],
@@ -171,6 +260,24 @@ export default function PaymentsPage() {
       if (error) throw error;
 
       alert(`Payment ${paymentNumber} recorded successfully!`);
+
+      // Generate and send WhatsApp message
+      if (order?.customers?.phone) {
+        const whatsappMessage = generatePaymentTypeMessage(
+          order.customers.name,
+          order.order_number,
+          paymentForm.type,
+          paymentForm.amount,
+          order.total_amount,
+          order.balance_due - paymentForm.amount,
+          paymentForm.method
+        );
+
+        if (confirm(`Would you like to send a WhatsApp notification to ${order.customers.name}?`)) {
+          sendWhatsAppNotification(order.customers.phone, whatsappMessage);
+        }
+      }
+
       setShowPaymentForm(false);
       setPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "" });
       
@@ -184,6 +291,79 @@ export default function PaymentsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Edit payment
+  const handleEditPayment = async () => {
+    if (!supabase || !editingPaymentId || editPaymentForm.amount <= 0) {
+      alert("Please fill all required fields");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("payments").update({
+        amount: editPaymentForm.amount,
+        payment_method: editPaymentForm.method,
+        reference_number: editPaymentForm.reference || null,
+        notes: `${editPaymentForm.type}${editPaymentForm.notes ? ": " + editPaymentForm.notes : ""}`,
+      }).eq("id", editingPaymentId);
+
+      if (error) throw error;
+
+      alert("Payment updated successfully!");
+      setEditingPaymentId(null);
+      setEditPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "" });
+      
+      // Refresh data
+      router.refresh();
+      window.location.reload();
+
+    } catch (err) {
+      console.error("Error updating payment:", err);
+      alert("Failed to update payment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete payment
+  const handleDeletePayment = async (paymentId: string, paymentNumber: string) => {
+    if (!supabase) return;
+
+    if (!confirm(`Are you sure you want to delete payment ${paymentNumber}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("payments").delete().eq("id", paymentId);
+
+      if (error) throw error;
+
+      alert("Payment deleted successfully!");
+      router.refresh();
+      window.location.reload();
+
+    } catch (err) {
+      console.error("Error deleting payment:", err);
+      alert("Failed to delete payment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open edit form
+  const handleOpenEditForm = (payment: Payment) => {
+    setEditingPaymentId(payment.id);
+    setEditPaymentForm({
+      orderId: payments.find(p => p.id === payment.id)?.order_id || "",
+      amount: payment.amount,
+      method: payment.payment_method,
+      type: payment.notes?.split(":")[0] || "Other",
+      reference: payment.reference_number || "",
+      notes: payment.notes?.includes(":") ? payment.notes.split(": ")[1] : "",
+    });
   };
 
   // Add expense
@@ -333,6 +513,7 @@ export default function PaymentsPage() {
                       <th className="whitespace-nowrap px-4 py-3">Date</th>
                       <th className="whitespace-nowrap px-4 py-3">Reference</th>
                       <th className="whitespace-nowrap px-4 py-3">Notes</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
@@ -365,6 +546,31 @@ export default function PaymentsPage() {
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)] max-w-[200px] truncate">
                             {payment.notes || "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenEditForm(payment)}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                                title="Edit payment"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeletePayment(payment.id, payment.payment_number)}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                                title="Delete payment"
+                              >
+                                🗑️
+                              </button>
+                              <button
+                                onClick={() => handleSendWhatsAppFromPayment(payment, order)}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors font-bold text-lg"
+                                title="Send WhatsApp notification"
+                              >
+                                💬
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -566,6 +772,86 @@ export default function PaymentsPage() {
               </button>
               <button
                 onClick={() => setShowPaymentForm(false)}
+                className="flex-1 h-11 rounded-xl border border-[var(--border)] text-sm font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {editingPaymentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-6 shadow-xl">
+            <h3 className="text-lg font-bold mb-4">Edit Payment</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Amount *</label>
+                <input
+                  type="number"
+                  value={editPaymentForm.amount || ""}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: parseFloat(e.target.value) || 0 })}
+                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                  placeholder="Enter amount"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Payment Type</label>
+                  <select
+                    value={editPaymentForm.type}
+                    onChange={(e) => setEditPaymentForm({ ...editPaymentForm, type: e.target.value })}
+                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                  >
+                    {paymentTypes.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Method</label>
+                  <select
+                    value={editPaymentForm.method}
+                    onChange={(e) => setEditPaymentForm({ ...editPaymentForm, method: e.target.value })}
+                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                  >
+                    {paymentMethods.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Reference Number</label>
+                <input
+                  value={editPaymentForm.reference}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, reference: e.target.value })}
+                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                  placeholder="UPI ID, Cheque No, etc."
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Notes</label>
+                <input
+                  value={editPaymentForm.notes}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, notes: e.target.value })}
+                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                  placeholder="Additional notes"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleEditPayment}
+                disabled={saving}
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "Updating..." : "Update Payment"}
+              </button>
+              <button
+                onClick={() => setEditingPaymentId(null)}
                 className="flex-1 h-11 rounded-xl border border-[var(--border)] text-sm font-semibold"
               >
                 Cancel

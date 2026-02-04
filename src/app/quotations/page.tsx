@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
-import { formatDate } from "@/lib/constants";
+import { formatDate, workflowStages } from "@/lib/constants";
 
 interface Quotation {
   id: string;
@@ -152,6 +152,10 @@ export default function QuotationsListPage() {
         if (match) nextNum = parseInt(match[1]) + 1;
       }
       const orderNumber = `ORD_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
+
+      // Initialize workflow status with all stages set to "No"
+      const initialWorkflow: Record<string, string> = {};
+      workflowStages.forEach(s => { initialWorkflow[s] = "No"; });
       
       // Create order with snapshot data
       const { data: newOrder, error: orderError } = await supabase
@@ -194,6 +198,7 @@ export default function QuotationsListPage() {
           balance_due: quotationData.total_amount,
           status: "Confirmed",
           payment_status: "Pending",
+          workflow_status: JSON.stringify(initialWorkflow),
         })
         .select()
         .single();

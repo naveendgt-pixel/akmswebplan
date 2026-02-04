@@ -130,6 +130,7 @@ function QuotationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [form, setForm] = useState<QuotationForm>(initialForm);
+  const [discountAmountManual, setDiscountAmountManual] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -260,6 +261,14 @@ function QuotationContent() {
         notes: quotation.notes || "",
       });
 
+      // Initialize manual discount amount if it differs from calculated
+      if (quotation.discount_amount && quotation.discount_percent) {
+        const calculated = Math.round((quotation.subtotal * quotation.discount_percent) / 100);
+        if (Math.abs(quotation.discount_amount - calculated) > 1) {
+          setDiscountAmountManual(quotation.discount_amount);
+        }
+      }
+
     } catch (error) {
       console.error("Error loading quotation:", error);
       setMessage({ type: "error", text: "Failed to load quotation for editing" });
@@ -272,7 +281,8 @@ function QuotationContent() {
   const videographyTotal = form.videoServices.reduce((sum, vs) => sum + vs.rate, 0);
   const additionalServicesTotal = form.additionalServices.reduce((sum, as) => sum + as.rate, 0);
   const subtotal = photographyTotal + videographyTotal + additionalServicesTotal;
-  const discountAmount = (subtotal * form.discountPercent) / 100;
+  const calculatedDiscountAmount = Math.round((subtotal * form.discountPercent) / 100);
+  const discountAmount = discountAmountManual !== null ? discountAmountManual : calculatedDiscountAmount;
   const totalAmount = subtotal - discountAmount;
 
   // Handle form changes
@@ -1045,16 +1055,41 @@ function QuotationContent() {
       {/* Pricing & Notes */}
       <SectionCard title="💰 Pricing & Notes" description="Discount and additional notes">
         <div className="grid gap-5 md:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--foreground)]">Discount (%)</label>
-            <input 
-              type="number" 
-              min="0"
-              max="100"
-              className={inputClass}
-              value={form.discountPercent || ""}
-              onChange={(e) => handleChange("discountPercent", parseInt(e.target.value) || 0)}
-            />
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Discount (%)</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className={inputClass}
+                  value={form.discountPercent || ""}
+                  onChange={(e) => {
+                    handleChange("discountPercent", parseFloat(e.target.value) || 0);
+                    setDiscountAmountManual(null); // Reset manual amount when percent changes
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Discount Amount (₹)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  min="0"
+                  step="1"
+                  value={discountAmount}
+                  onChange={(e) => {
+                    const val = Math.round(parseFloat(e.target.value) || 0);
+                    setDiscountAmountManual(val);
+                  }}
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Calculated: ₹{calculatedDiscountAmount.toLocaleString("en-IN")} • Edit to override
+                </p>
+              </div>
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Notes</label>

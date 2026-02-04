@@ -114,6 +114,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   // Post Production Expense Categories (fixed for all orders)
   const postProdCategories = [
     "Album Designing",
+    "Album Printing",
     "Traditional Video Editing",
     "Candid Video Editing",
     "Photo Retouching",
@@ -371,6 +372,77 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return `PAY_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
   };
 
+  // WhatsApp notification helper
+  const sendWhatsAppNotification = (phone: string, message: string) => {
+    if (!phone) return;
+    // Clean phone number - remove spaces and add country code if needed
+    let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) {
+      cleanPhone = '91' + cleanPhone; // Add India country code
+    }
+    // Open WhatsApp with pre-filled message
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+  };
+
+  // Generate payment notification message
+  const generatePaymentMessage = (
+    customerName: string,
+    eventType: string,
+    eventDate: string | null,
+    amountPaid: number,
+    totalAmount: number,
+    balanceRemaining: number,
+    paymentType: string
+  ) => {
+    const formattedEventDate = eventDate ? formatDate(eventDate) : 'N/A';
+    const formattedPaid = formatCurrency(amountPaid);
+    const formattedTotal = formatCurrency(totalAmount);
+    const formattedBalance = formatCurrency(balanceRemaining);
+    
+    if (balanceRemaining <= 0) {
+      return `🎉 *Payment Received - Aura Knot Photography*
+
+Dear ${customerName},
+
+Thank you! We have received your ${paymentType} payment.
+
+📝 *Event Details:*
+• Event: ${eventType}
+• Date: ${formattedEventDate}
+
+💰 *Payment Details:*
+• Amount Received: ${formattedPaid}
+• Total Amount: ${formattedTotal}
+• Balance: ₹0 (FULLY PAID ✅)
+
+Thank you for choosing Aura Knot Photography! 📸
+
+For any queries, contact us at +91 8610 100 885`;
+    } else {
+      return `✅ *Payment Received - Aura Knot Photography*
+
+Dear ${customerName},
+
+Thank you! We have received your ${paymentType} payment.
+
+📝 *Event Details:*
+• Event: ${eventType}
+• Date: ${formattedEventDate}
+
+💰 *Payment Details:*
+• Amount Received: ${formattedPaid}
+• Total Amount: ${formattedTotal}
+• Remaining Balance: ${formattedBalance}
+
+Please clear the remaining balance as per the agreed schedule.
+
+For any queries, contact us at +91 8610 100 885
+
+Thank you for choosing Aura Knot Photography! 📸`;
+    }
+  };
+
   const handleSavePayment = async () => {
     if (!supabase || !order) return;
     if (!paymentForm.payment_type || !paymentForm.payment_method || !paymentForm.amount) {
@@ -429,6 +501,23 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           final_budget: updatedOrder.final_budget ?? order.final_budget
         });
       }
+
+      // Generate WhatsApp notification message
+      const whatsappMessage = generatePaymentMessage(
+        order.customer_name,
+        order.event_type,
+        order.event_date,
+        paymentForm.amount,
+        budgetForBalance,
+        newBalance,
+        paymentForm.payment_type
+      );
+
+      // Ask user if they want to send WhatsApp notification
+      if (order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
+        sendWhatsAppNotification(order.customer_phone, whatsappMessage);
+      }
+
       setShowPaymentModal(false);
       setPaymentForm({ payment_type: "", payment_method: "", amount: 0, payment_date: new Date().toISOString().split("T")[0], notes: "" });
     } catch (error) {
