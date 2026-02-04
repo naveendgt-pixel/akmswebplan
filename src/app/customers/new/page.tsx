@@ -195,28 +195,26 @@ export default function NewCustomerPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Event Type <span className="text-red-500">*</span></label>
-            <select 
-              className={selectClass}
-              value={form.eventType}
-              onChange={(e) => handleChange("eventType", e.target.value)}
-            >
-              <option value="">Select event type</option>
-              {eventTypes.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-          </div>
-          {form.eventType === "Others" && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[var(--foreground)]">Custom Event Type <span className="text-red-500">*</span></label>
+            {form.eventType === "Others" ? (
               <input 
-                placeholder="Enter custom event type"
+                placeholder="Enter event type"
                 className={inputClass}
                 value={manualEventType}
                 onChange={(e) => setManualEventType(e.target.value)}
               />
-            </div>
-          )}
+            ) : (
+              <select 
+                className={selectClass}
+                value={form.eventType}
+                onChange={(e) => handleChange("eventType", e.target.value)}
+              >
+                <option value="">Select event type</option>
+                {eventTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            )}
+          </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[var(--foreground)]">Event Start Date <span className="text-red-500">*</span></label>
             <input 
