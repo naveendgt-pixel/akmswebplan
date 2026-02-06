@@ -47,6 +47,7 @@ interface OrderData {
   status: string;
   payment_status: string;
   delivery_status: string;
+  order_completed: string;
   workflow_status: string;
   final_budget: number;
   notes: string;
@@ -110,6 +111,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("");
   const [editingFinalBudget, setEditingFinalBudget] = useState(false);
   const [finalBudgetInput, setFinalBudgetInput] = useState<number>(0);
+  const [editingCreatedDate, setEditingCreatedDate] = useState(false);
+  const [createdDateInput, setCreatedDateInput] = useState<string>("");
 
   // Post Production Expense Categories (fixed for all orders)
   const postProdCategories = [
@@ -443,6 +446,64 @@ Thank you for choosing Aura Knot Photography! 📸`;
     }
   };
 
+  // Generate workflow status notification message
+  const generateWorkflowMessage = (
+    customerName: string,
+    orderNumber: string,
+    workflowStage: string,
+    eventType: string
+  ) => {
+    // Try to get custom message from localStorage
+    const whatsappMessages = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("whatsapp_messages") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+
+    const defaultWorkflowMessages: Record<string, string> = {
+      "Photo Selection": `Hi {customerName},\n\n✓ Photo Selection Complete\n\nWe've completed the photo selection process for your {eventType}. Your album is ready for the next stage!\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+      "Album Design": `Hi {customerName},\n\n✓ Album Design Complete\n\nYour album design is finalized and ready for printing. We'll keep you updated on the next stages!\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+      "Album Printing": `Hi {customerName},\n\n✓ Album Printing In Progress\n\nYour album is currently being printed with premium quality. We'll notify you as soon as it's ready!\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+      "Video Editing": `Hi {customerName},\n\n✓ Video Editing Complete\n\nYour highlight video is ready! We've crafted beautiful memories from your {eventType}.\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+      "Outdoor Shoot": `Hi {customerName},\n\n✓ Outdoor Shoot Scheduled\n\nWe're excited to capture your outdoor moments! Details will be shared soon.\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+      "Album Delivery": `Hi {customerName},\n\n✓ Album Delivered\n\nYour beautiful album and all deliverables are ready! Thank you for trusting Aura Knot Photography.\n\nOrder: {orderNumber}\n\nThank you for choosing Aura Knot Photography! 📸`,
+    };
+
+    const template = whatsappMessages[workflowStage] || defaultWorkflowMessages[workflowStage] || `Workflow stage "${workflowStage}" is now complete for your order ${orderNumber}`;
+    
+    return template
+      .replace(/{customerName}/g, customerName)
+      .replace(/{orderNumber}/g, orderNumber)
+      .replace(/{workflowStage}/g, workflowStage)
+      .replace(/{eventType}/g, eventType);
+  };
+
+  // Generate order completion notification message
+  const generateOrderCompletionMessage = (
+    customerName: string,
+    orderNumber: string,
+    eventType: string
+  ) => {
+    // Try to get custom message from localStorage
+    const whatsappMessages = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("whatsapp_messages") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+
+    const defaultMessage = `Hi {customerName},\n\n🎉 Your Order is Complete!\n\nThank you for trusting Aura Knot Photography for your {eventType}. All deliverables are ready for pickup/delivery.\n\nOrder #{orderNumber}\n\nWe'd love to hear from you! Please share your feedback.\n\n- Aura Knot`;
+    const template = whatsappMessages["Order Completed"] || defaultMessage;
+    
+    return template
+      .replace(/{customerName}/g, customerName)
+      .replace(/{orderNumber}/g, orderNumber)
+      .replace(/{eventType}/g, eventType);
+  };
+
   const handleSavePayment = async () => {
     if (!supabase || !order) return;
     if (!paymentForm.payment_type || !paymentForm.payment_method || !paymentForm.amount) {
@@ -712,11 +773,73 @@ Thank you for choosing Aura Knot Photography! 📸`;
         <div>
           <p className="text-sm font-medium text-[var(--muted-foreground)]">Order Details</p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">{order.order_number}</h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Created: <span className="font-medium text-[var(--foreground)]">{formatDate(order.created_at)}</span>
-          </p>
+          {editingCreatedDate ? (
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="date"
+                value={createdDateInput}
+                onChange={(e) => setCreatedDateInput(e.target.value)}
+                className="h-8 px-2 text-sm rounded border border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+              <button
+                onClick={async () => {
+                  if (!supabase) return;
+                  
+                  // Validation: created_at must be <= event_end_date
+                  const eventEndDate = order.event_end_date || order.event_date;
+                  if (createdDateInput > eventEndDate) {
+                    alert("Order created date cannot be after the event date!");
+                    return;
+                  }
+                  
+                  try {
+                    await supabase.from("orders").update({ created_at: createdDateInput }).eq("id", order.id);
+                    setOrder({ ...order, created_at: createdDateInput });
+                    setEditingCreatedDate(false);
+                  } catch (error) {
+                    console.error("Error updating created date:", error);
+                  }
+                }}
+                className="p-1.5 rounded bg-green-500 text-white hover:bg-green-600"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => {
+                  setEditingCreatedDate(false);
+                }}
+                className="p-1.5 rounded bg-gray-400 text-white hover:bg-gray-500"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <p 
+              className="mt-1 text-sm text-[var(--muted-foreground)] cursor-pointer hover:text-[var(--foreground)] transition-colors"
+              onClick={() => {
+                const dateStr = new Date(order.created_at).toISOString().split('T')[0];
+                setCreatedDateInput(dateStr);
+                setEditingCreatedDate(true);
+              }}
+            >
+              Created: <span className="font-medium text-[var(--foreground)]">{formatDate(order.created_at)}</span>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2 mt-3 sm:mt-0">
+          <button
+            onClick={() => {
+              if (order.quotation_id) {
+                router.push(`/quotation?editId=${order.quotation_id}`);
+              } else {
+                // No quotation - edit the order's services directly
+                router.push(`/quotation?editOrderId=${order.id}`);
+              }
+            }}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-all duration-200"
+          >
+            ✏️ Edit Order
+          </button>
           <button
             onClick={generateOrderPDF}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30"
@@ -795,6 +918,20 @@ Thank you for choosing Aura Knot Photography! 📸`;
                       try {
                         await supabase.from("orders").update({ workflow_status: jsonString }).eq("id", order.id);
                         setOrder({ ...order, workflow_status: jsonString });
+                        
+                        // Show WhatsApp prompt if stage is marked as complete
+                        if ((newStatus === "Yes" || newStatus === "Not Needed") && order.customer_phone) {
+                          const workflowMessage = generateWorkflowMessage(
+                            order.customer_name,
+                            order.order_number,
+                            stage,
+                            order.event_type
+                          );
+                          
+                          if (confirm(`Stage marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
+                            sendWhatsAppNotification(order.customer_phone, workflowMessage);
+                          }
+                        }
                       } catch (error) {
                         console.error("Error updating workflow:", error);
                       }
@@ -843,6 +980,64 @@ Thank you for choosing Aura Knot Photography! 📸`;
           >
             Reset All
           </button>
+        </div>
+      </div>
+
+      {/* Order Completion Status */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+              ✅ Order Completion Status
+            </h3>
+            <p className="text-sm text-[var(--muted-foreground)]">Mark this order as complete to show profit in the dashboard</p>
+          </div>
+          <select
+            value={order.order_completed || "No"}
+            onChange={async (e) => {
+              if (!supabase) return;
+              const newStatus = e.target.value;
+              try {
+                await supabase.from("orders").update({ order_completed: newStatus }).eq("id", order.id);
+                setOrder({ ...order, order_completed: newStatus });
+                
+                // Show WhatsApp notification if order is marked as completed
+                if (newStatus === "Yes" && order.customer_phone) {
+                  // Check if WhatsApp notifications are enabled for order completion
+                  const whatsappSettings = (() => {
+                    try {
+                      return JSON.parse(localStorage.getItem("whatsapp_settings") || "{}");
+                    } catch {
+                      return {};
+                    }
+                  })();
+                  
+                  if (whatsappSettings.order_completion !== false) { // Default to true if not set
+                    const completionMessage = generateOrderCompletionMessage(
+                      order.customer_name,
+                      order.order_number,
+                      order.event_type
+                    );
+                    
+                    if (confirm(`Order marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
+                      sendWhatsAppNotification(order.customer_phone, completionMessage);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error("Error updating order completion status:", error);
+              }
+            }}
+            className={`text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer appearance-none outline-none ${
+              order.order_completed === "Yes" 
+                ? "bg-[var(--success)] text-white" 
+                : "bg-[var(--danger)] text-white"
+            }`}
+            style={{ colorScheme: "dark" }}
+          >
+            <option value="No">Not Completed</option>
+            <option value="Yes">Completed</option>
+          </select>
         </div>
       </div>
 
@@ -1141,6 +1336,104 @@ Thank you for choosing Aura Knot Photography! 📸`;
                 </div>
               </div>
             )}
+          </SectionCard>
+
+          {/* Miscellaneous Section - Common field for all orders */}
+          <SectionCard title="📝 Miscellaneous" description="General notes, items, and other expenses">
+            <div className="space-y-4">
+              {/* Miscellaneous Notes Field */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/30 p-4">
+                <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">Order Notes</label>
+                <textarea
+                  value={order?.notes || ""}
+                  onChange={async (e) => {
+                    if (!supabase || !order) return;
+                    const newNotes = e.target.value;
+                    setOrder({ ...order, notes: newNotes });
+                    try {
+                      await supabase.from("orders").update({ notes: newNotes }).eq("id", order.id);
+                    } catch (error) {
+                      console.error("Error updating notes:", error);
+                    }
+                  }}
+                  placeholder="Add any miscellaneous notes, special requests, or additional information about this order..."
+                  className="w-full h-24 p-3 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                />
+              </div>
+
+              {/* Miscellaneous Expenses */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between bg-[var(--secondary)]/50">
+                  <span className="text-sm font-medium text-[var(--foreground)]">Miscellaneous Expenses</span>
+                  <button
+                    onClick={() => {
+                      setExpenseForm({
+                        category: "Miscellaneous",
+                        vendor_name: "",
+                        amount: 0,
+                        expense_date: new Date().toISOString().split("T")[0],
+                        description: "",
+                        order_item_id: "",
+                      });
+                      setShowPostProdExpenseModal(true);
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90"
+                  >
+                    + Add Miscellaneous Expense
+                  </button>
+                </div>
+
+                {(() => {
+                  const miscExpenses = expenses.filter((e) => e.category === "Miscellaneous");
+                  const miscTotal = miscExpenses.reduce((sum, e) => sum + e.amount, 0);
+                  
+                  return miscExpenses.length > 0 ? (
+                    <div className="px-4 py-3 border-t border-[var(--border)]">
+                      <div className="space-y-3">
+                        {miscExpenses.map((expense) => (
+                          <div key={expense.id} className="flex items-center justify-between bg-[var(--secondary)]/50 rounded-lg px-4 py-3 border border-[var(--border)]">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-[var(--foreground)]">{expense.vendor_name || "Miscellaneous Item"}</p>
+                              {expense.description && (
+                                <p className="text-xs text-[var(--muted-foreground)]">{expense.description}</p>
+                              )}
+                              <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                Date: {formatDate(expense.expense_date)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 ml-4">
+                              <span className="text-sm font-bold text-amber-600">
+                                {formatCurrency(expense.amount)}
+                              </span>
+                              <button 
+                                onClick={() => handleEditExpense(expense)} 
+                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteExpense(expense.id)} 
+                                className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-[var(--border)] flex items-center justify-between">
+                        <span className="text-sm font-medium text-[var(--foreground)]">Total Miscellaneous</span>
+                        <span className="text-lg font-bold text-amber-600">{formatCurrency(miscTotal)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--muted-foreground)] text-center py-6 border-t border-[var(--border)]">
+                      No miscellaneous expenses added yet
+                    </p>
+                  );
+                })()}
+              </div>
+            </div>
           </SectionCard>
 
           {/* Order Summary */}

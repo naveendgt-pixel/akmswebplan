@@ -45,6 +45,7 @@ interface QuotationData {
   mini_books: number;
   calendars: number;
   frames: number;
+  created_at: string;
   customers: {
     id: string;
     name: string;
@@ -83,6 +84,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmountManual, setDiscountAmountManual] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
 
   // Fetch quotation data
   useEffect(() => {
@@ -148,6 +150,12 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
           }
         }
         setNotes(quotationData.notes || "");
+        // Set created_at as a date string (YYYY-MM-DD)
+        if (quotationData.created_at) {
+          // Handle ISO string format from Supabase
+          const dateStr = quotationData.created_at.split('T')[0];
+          setCreatedAt(dateStr);
+        }
 
       } catch (error) {
         console.error("Error fetching quotation:", error);
@@ -226,6 +234,7 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
           discount_amount: discountAmount,
           total_amount: totalAmount,
           notes: notes || null,
+          created_at: createdAt,
         })
         .eq("id", quotation.id);
 
@@ -400,6 +409,20 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
               {quotation.status}
             </span>
           </div>
+        </div>
+      </SectionCard>
+
+      {/* Quotation Created Date */}
+      <SectionCard title="Quotation Created Date" description="Edit the date when this quotation was created">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-[var(--foreground)]">Created Date</label>
+          <input
+            type="date"
+            className={inputClass}
+            value={createdAt}
+            onChange={(e) => setCreatedAt(e.target.value)}
+          />
+          <p className="text-xs text-[var(--muted-foreground)] mt-2">Use this to set the correct date for historical quotations</p>
         </div>
       </SectionCard>
 

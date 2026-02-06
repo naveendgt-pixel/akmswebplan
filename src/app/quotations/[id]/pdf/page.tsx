@@ -36,8 +36,24 @@ interface QuotationData {
   total_photos: number;
   album_size: string | null;
   mini_books: number;
+  mini_books_comp: boolean;
   calendars: number;
+  calendars_comp: boolean;
   frames: number;
+  frames_comp: boolean;
+  cinematic_teaser: number;
+  cinematic_teaser_comp: boolean;
+  traditional_highlight_video: number;
+  traditional_highlight_video_comp: boolean;
+  cinematic_candid_video: number;
+  cinematic_candid_video_comp: boolean;
+  save_the_date: number;
+  save_the_date_comp: boolean;
+  e_invitation: number;
+  e_invitation_comp: boolean;
+  other_deliverable: string | null;
+  other_deliverable_qty: number;
+  other_deliverable_comp: boolean;
   created_at: string;
   customers: {
     id: string;
@@ -454,16 +470,12 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           ` : ''}
 
           <div class="section">
-            <div class="section-title">Deliverables</div>
+            <div class="section-title">Album Overview</div>
             <div class="deliverables-grid">
               <div class="deliverable-item"><div class="deliverable-value">${quotation.num_albums || 0}</div><div class="deliverable-label">Albums</div></div>
               <div class="deliverable-item"><div class="deliverable-value">${quotation.sheets_per_album || 0}</div><div class="deliverable-label">Sheets/Album</div></div>
               <div class="deliverable-item"><div class="deliverable-value">${quotation.total_photos || 0}</div><div class="deliverable-label">Photos for Selection</div></div>
-              <div class="deliverable-item"><div class="deliverable-value">${quotation.album_size || "-"}</div><div class="deliverable-label">Album Size</div></div>
-              <div class="deliverable-item"><div class="deliverable-value">${quotation.mini_books || 0}</div><div class="deliverable-label">Mini Books</div></div>
-              <div class="deliverable-item"><div class="deliverable-value">${quotation.calendars || 0}</div><div class="deliverable-label">Calendars</div></div>
-              <div class="deliverable-item"><div class="deliverable-value">${quotation.frames || 0}</div><div class="deliverable-label">Photo Frames</div></div>
-              <div class="deliverable-item"><div class="deliverable-value">1</div><div class="deliverable-label">Highlight Video</div></div>
+              <div class="deliverable-item"><div class="deliverable-value">${quotation.album_size || '-'}</div><div class="deliverable-label">Album Size</div></div>
             </div>
           </div>
 
@@ -716,27 +728,28 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                 </div>
               )}
 
-              {/* Deliverables */}
+              {/* Album Overview */}
               <div className="mb-5">
                 <h3 className="text-xs font-bold text-[#5b1e2d] uppercase tracking-wide pb-2 border-b border-[#e6c9a9] mb-3">
-                  Deliverables
+                  Album Overview
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { value: quotation.num_albums || 0, label: "Albums" },
-                    { value: quotation.sheets_per_album || 0, label: "Sheets/Album" },
-                    { value: quotation.total_photos || 0, label: "Photos for Selection" },
-                    { value: quotation.album_size || "-", label: "Album Size" },
-                    { value: quotation.mini_books || 0, label: "Mini Books" },
-                    { value: quotation.calendars || 0, label: "Calendars" },
-                    { value: quotation.frames || 0, label: "Photo Frames" },
-                    { value: "1", label: "Highlight Video" },
-                  ].map((item, idx) => (
-                    <div key={idx} className="bg-[#faf6f2] p-3 rounded text-center border border-[#e6c9a9]">
-                      <div className="text-lg font-bold text-[#5b1e2d]">{item.value}</div>
-                      <div className="text-[9px] text-gray-500 uppercase mt-1">{item.label}</div>
-                    </div>
-                  ))}
+                  <div className="bg-[#faf6f2] p-3 rounded text-center border border-[#e6c9a9]">
+                    <div className="text-lg font-bold text-[#5b1e2d]">{quotation.num_albums || 0}</div>
+                    <div className="text-[9px] text-gray-500 uppercase mt-1">Albums</div>
+                  </div>
+                  <div className="bg-[#faf6f2] p-3 rounded text-center border border-[#e6c9a9]">
+                    <div className="text-lg font-bold text-[#5b1e2d]">{quotation.sheets_per_album || 0}</div>
+                    <div className="text-[9px] text-gray-500 uppercase mt-1">Sheets/Album</div>
+                  </div>
+                  <div className="bg-[#faf6f2] p-3 rounded text-center border border-[#e6c9a9]">
+                    <div className="text-lg font-bold text-[#5b1e2d]">{quotation.total_photos || 0}</div>
+                    <div className="text-[9px] text-gray-500 uppercase mt-1">Photos for Selection</div>
+                  </div>
+                  <div className="bg-[#faf6f2] p-3 rounded text-center border border-[#e6c9a9]">
+                    <div className="text-lg font-bold text-[#5b1e2d]">{quotation.album_size || '-'}</div>
+                    <div className="text-[9px] text-gray-500 uppercase mt-1">Album Size</div>
+                  </div>
                 </div>
               </div>
 

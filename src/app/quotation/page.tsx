@@ -38,6 +38,8 @@ interface AdditionalService {
   service: string;
   remarks: string;
   rate: number;
+  session: string;
+  complementary: string; // 'Yes' or 'No'
 }
 
 interface QuotationForm {
@@ -66,14 +68,32 @@ interface QuotationForm {
   totalPhotos: number;
   albumSize: string;
   
-  // Print & Gifts
+  // Print & Gifts (Quantity + Complementary toggle for each)
   miniBooks: number;
+  miniBooksComp: boolean;
   calendars: number;
+  calendarsComp: boolean;
   frames: number;
+  framesComp: boolean;
+  cinematicTeaser: number;
+  cinematicTeaserComp: boolean;
+  traditionalHighlightVideo: number;
+  traditionalHighlightVideoComp: boolean;
+  cinematicCandidVideo: number;
+  cinematicCandidVideoComp: boolean;
+  saveTheDate: number;
+  savetheDateComp: boolean;
+  eInvitation: number;
+  eInvitationComp: boolean;
+  otherDeliverable: string;
+  otherDeliverableQty: number;
+  otherDeliverableComp: boolean;
   
   // Pricing
   discountPercent: number;
   notes: string;
+  createdAt: string;
+  createOrderOnly: boolean;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -101,6 +121,8 @@ const createAdditionalService = (): AdditionalService => ({
   service: "",
   remarks: "",
   rate: 0,
+  session: "",
+  complementary: "No",
 });
 
 const initialForm: QuotationForm = {
@@ -120,10 +142,28 @@ const initialForm: QuotationForm = {
   totalPhotos: 0,
   albumSize: "",
   miniBooks: 0,
+  miniBooksComp: false,
   calendars: 0,
+  calendarsComp: false,
   frames: 0,
+  framesComp: false,
+  cinematicTeaser: 0,
+  cinematicTeaserComp: false,
+  traditionalHighlightVideo: 0,
+  traditionalHighlightVideoComp: false,
+  cinematicCandidVideo: 0,
+  cinematicCandidVideoComp: false,
+  saveTheDate: 0,
+  savetheDateComp: false,
+  eInvitation: 0,
+  eInvitationComp: false,
+  otherDeliverable: "",
+  otherDeliverableQty: 0,
+  otherDeliverableComp: false,
   discountPercent: 0,
   notes: "",
+  createdAt: "",
+  createOrderOnly: false,
 };
 
 function QuotationContent() {
@@ -136,18 +176,32 @@ function QuotationContent() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editQuotationId, setEditQuotationId] = useState<string | null>(null);
   const [editQuotationNumber, setEditQuotationNumber] = useState<string | null>(null);
+  const [creationMode, setCreationMode] = useState<"quotation" | "order" | null>(null);
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
+  const [showModeChoice, setShowModeChoice] = useState(false);
 
   // Load customer data from URL params OR load existing quotation for editing
   useEffect(() => {
     const quotationId = searchParams.get("editId");
+    const orderIdToEdit = searchParams.get("editOrderId");
+    const shouldShowModeChoice = searchParams.get("showModeChoice") === "true";
     
-    if (quotationId) {
-      // Edit mode - load existing quotation
+    if (orderIdToEdit) {
+      // Edit order mode - load existing order services
+      setIsEditMode(true);
+      setEditOrderId(orderIdToEdit);
+      loadExistingOrder(orderIdToEdit);
+    } else if (quotationId) {
+      // Edit quotation mode - load existing quotation
       setIsEditMode(true);
       setEditQuotationId(quotationId);
       loadExistingQuotation(quotationId);
     } else {
       // Create mode - load from URL params
+      if (shouldShowModeChoice) {
+        setShowModeChoice(true);
+      }
+      
       const customerId = searchParams.get("customerId") || "";
       const customerName = searchParams.get("customerName") || "";
       const customerPhone = searchParams.get("customerPhone") || "";
@@ -228,11 +282,32 @@ function QuotationContent() {
             rate: item.total_price || 0,
           });
         } else if (item.category === "Additional Services" || item.category === "Additional") {
+          // Parse description to extract service, session, and complementary status
+          const desc = item.description || "";
+          let service = desc;
+          let session = "";
+          let complementary = "No";
+          
+          // Check if complementary
+          if (desc.includes("(Complimentary - No Worries)")) {
+            complementary = "Yes";
+            service = desc.replace(" (Complimentary - No Worries)", "");
+          }
+          
+          // Check if session is present (after " - ")
+          const sessionMatch = service.match(/ - (.+)$/);
+          if (sessionMatch) {
+            session = sessionMatch[1];
+            service = service.replace(` - ${session}`, "");
+          }
+          
           additionalServicesArr.push({
             id: generateId(),
-            service: item.description || "",
+            service: service,
             remarks: "",
             rate: item.total_price || 0,
+            session: session,
+            complementary: complementary,
           });
         }
       });
@@ -255,10 +330,28 @@ function QuotationContent() {
         totalPhotos: quotation.total_photos || 0,
         albumSize: quotation.album_size || "",
         miniBooks: quotation.mini_books || 0,
+        miniBooksComp: quotation.mini_books_comp || false,
         calendars: quotation.calendars || 0,
+        calendarsComp: quotation.calendars_comp || false,
         frames: quotation.frames || 0,
+        framesComp: quotation.frames_comp || false,
+        cinematicTeaser: typeof quotation.cinematic_teaser === "number" ? quotation.cinematic_teaser : (quotation.cinematic_teaser ? 1 : 0),
+        cinematicTeaserComp: quotation.cinematic_teaser_comp || false,
+        traditionalHighlightVideo: typeof quotation.traditional_highlight_video === "number" ? quotation.traditional_highlight_video : (quotation.traditional_highlight_video ? 1 : 0),
+        traditionalHighlightVideoComp: quotation.traditional_highlight_video_comp || false,
+        cinematicCandidVideo: typeof quotation.cinematic_candid_video === "number" ? quotation.cinematic_candid_video : (quotation.cinematic_candid_video ? 1 : 0),
+        cinematicCandidVideoComp: quotation.cinematic_candid_video_comp || false,
+        saveTheDate: typeof quotation.save_the_date === "number" ? quotation.save_the_date : (quotation.save_the_date ? 1 : 0),
+        savetheDateComp: quotation.save_the_date_comp || false,
+        eInvitation: typeof quotation.e_invitation === "number" ? quotation.e_invitation : (quotation.e_invitation ? 1 : 0),
+        eInvitationComp: quotation.e_invitation_comp || false,
+        otherDeliverable: quotation.other_deliverable || "",
+        otherDeliverableQty: quotation.other_deliverable_qty || 0,
+        otherDeliverableComp: quotation.other_deliverable_comp || false,
         discountPercent: quotation.discount_percent || 0,
         notes: quotation.notes || "",
+        createdAt: quotation.created_at ? quotation.created_at.split('T')[0] : "",
+        createOrderOnly: false,
       });
 
       // Initialize manual discount amount if it differs from calculated
@@ -275,6 +368,146 @@ function QuotationContent() {
     }
   };
 
+  const loadExistingOrder = async (orderId: string) => {
+    if (!supabase) return;
+
+    try {
+      // Fetch order with customer
+      const { data: order, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          customers (
+            id,
+            name,
+            phone
+          )
+        `)
+        .eq("id", orderId)
+        .single();
+
+      if (error) throw error;
+
+      // Fetch order items
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", orderId);
+
+      // Parse items into services (similar to quotation items)
+      const photoServices: PhotoService[] = [];
+      const videoServices: VideoService[] = [];
+      const additionalServicesArr: AdditionalService[] = [];
+
+      (items || []).forEach((item) => {
+        if (item.category === "Photography") {
+          photoServices.push({
+            id: generateId(),
+            type: item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : "",
+            area: "",
+            cameras: item.quantity || 1,
+            session: "",
+            rate: item.total_price || 0,
+          });
+        } else if (item.category === "Videography") {
+          videoServices.push({
+            id: generateId(),
+            type: item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : "",
+            area: "",
+            cameras: item.quantity || 1,
+            session: "",
+            rate: item.total_price || 0,
+          });
+        } else if (item.category === "Additional Services" || item.category === "Additional") {
+          // Parse description to extract service, session, and complementary status
+          const desc = item.description || "";
+          let service = desc;
+          let session = "";
+          let complementary = "No";
+          
+          // Check if complementary
+          if (desc.includes("(Complimentary)")) {
+            complementary = "Yes";
+            service = desc.replace(" (Complimentary)", "");
+          }
+          
+          // Check if session is present (after " - ")
+          const sessionMatch = service.match(/ - (.+)$/);
+          if (sessionMatch) {
+            session = sessionMatch[1];
+            service = service.replace(` - ${session}`, "");
+          }
+          
+          additionalServicesArr.push({
+            id: generateId(),
+            service: service,
+            remarks: "",
+            rate: item.total_price || 0,
+            session: session,
+            complementary: complementary,
+          });
+        }
+      });
+
+      // Set form with loaded order data
+      setForm({
+        customerId: order.customer_id || "",
+        customerName: order.customers?.name || "",
+        customerPhone: order.customers?.phone || "",
+        eventType: order.event_type || "",
+        eventDate: order.event_date || "",
+        eventVenue: order.event_venue || "",
+        eventCity: order.event_city || "",
+        packageType: order.package_type || "",
+        photoServices: photoServices.length > 0 ? photoServices : [createPhotoService()],
+        videoServices: videoServices.length > 0 ? videoServices : [createVideoService()],
+        additionalServices: additionalServicesArr,
+        numAlbums: order.num_albums || 0,
+        sheetsPerAlbum: order.sheets_per_album || 0,
+        totalPhotos: order.total_photos || 0,
+        albumSize: order.album_size || "",
+        miniBooks: order.mini_books || 0,
+        miniBooksComp: order.mini_books_comp || false,
+        calendars: order.calendars || 0,
+        calendarsComp: order.calendars_comp || false,
+        frames: order.frames || 0,
+        framesComp: order.frames_comp || false,
+        cinematicTeaser: typeof order.cinematic_teaser === "number" ? order.cinematic_teaser : (order.cinematic_teaser ? 1 : 0),
+        cinematicTeaserComp: order.cinematic_teaser_comp || false,
+        traditionalHighlightVideo: typeof order.traditional_highlight_video === "number" ? order.traditional_highlight_video : (order.traditional_highlight_video ? 1 : 0),
+        traditionalHighlightVideoComp: order.traditional_highlight_video_comp || false,
+        cinematicCandidVideo: typeof order.cinematic_candid_video === "number" ? order.cinematic_candid_video : (order.cinematic_candid_video ? 1 : 0),
+        cinematicCandidVideoComp: order.cinematic_candid_video_comp || false,
+        saveTheDate: typeof order.save_the_date === "number" ? order.save_the_date : (order.save_the_date ? 1 : 0),
+        savetheDateComp: order.save_the_date_comp || false,
+        eInvitation: typeof order.e_invitation === "number" ? order.e_invitation : (order.e_invitation ? 1 : 0),
+        eInvitationComp: order.e_invitation_comp || false,
+        otherDeliverable: order.other_deliverable || "",
+        otherDeliverableQty: order.other_deliverable_qty || 0,
+        otherDeliverableComp: order.other_deliverable_comp || false,
+        discountPercent: order.discount_percent || 0,
+        notes: order.notes || "",
+        createdAt: order.created_at ? order.created_at.split('T')[0] : "",
+        createOrderOnly: true,
+      });
+
+      // Initialize manual discount amount if it differs from calculated
+      if (order.discount_amount && order.discount_percent) {
+        const calculated = Math.round((order.subtotal * order.discount_percent) / 100);
+        if (Math.abs(order.discount_amount - calculated) > 1) {
+          setDiscountAmountManual(order.discount_amount);
+        }
+      }
+
+      // Set the page title to indicate editing an order
+      setCreationMode("order");
+
+    } catch (error) {
+      console.error("Error loading order:", error);
+      setMessage({ type: "error", text: "Failed to load order for editing" });
+    }
+  };
+
   // Calculate totals
   const totalSheets = form.numAlbums * form.sheetsPerAlbum;
   const photographyTotal = form.photoServices.reduce((sum, ps) => sum + ps.rate, 0);
@@ -286,7 +519,7 @@ function QuotationContent() {
   const totalAmount = subtotal - discountAmount;
 
   // Handle form changes
-  const handleChange = (field: keyof QuotationForm, value: string | number) => {
+  const handleChange = (field: keyof QuotationForm, value: string | number | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -386,6 +619,29 @@ function QuotationContent() {
     return `QT_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
   };
 
+  const generateOrderNumber = async () => {
+    if (!supabase) {
+      const year = new Date().getFullYear().toString().slice(-2);
+      return `ORD_AKP_${year}_0001`;
+    }
+
+    const { data } = await supabase
+      .from("orders")
+      .select("order_number")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const year = new Date().getFullYear().toString().slice(-2);
+    if (!data || data.length === 0) {
+      return `ORD_AKP_${year}_0001`;
+    }
+
+    const lastNumber = data[0].order_number;
+    const match = lastNumber.match(/_(\d{4})$/);
+    const nextNum = match ? parseInt(match[1]) + 1 : 1;
+    return `ORD_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
+  };
+
   // Handle form submission (Create or Update)
   const handleSubmit = async () => {
     if (!form.eventType) {
@@ -435,17 +691,181 @@ function QuotationContent() {
         album_size: form.albumSize || null,
         // Print & Gifts (Snapshot)
         mini_books: form.miniBooks || 0,
+        mini_books_comp: form.miniBooksComp || false,
         calendars: form.calendars || 0,
+        calendars_comp: form.calendarsComp || false,
         frames: form.frames || 0,
+        frames_comp: form.framesComp || false,
+        cinematic_teaser: form.cinematicTeaser || 0,
+        cinematic_teaser_comp: form.cinematicTeaserComp || false,
+        traditional_highlight_video: form.traditionalHighlightVideo || 0,
+        traditional_highlight_video_comp: form.traditionalHighlightVideoComp || false,
+        cinematic_candid_video: form.cinematicCandidVideo || 0,
+        cinematic_candid_video_comp: form.cinematicCandidVideoComp || false,
+        save_the_date: form.saveTheDate || 0,
+        save_the_date_comp: form.savetheDateComp || false,
+        e_invitation: form.eInvitation || 0,
+        e_invitation_comp: form.eInvitationComp || false,
+        other_deliverable: form.otherDeliverable || null,
+        other_deliverable_qty: form.otherDeliverableQty || 0,
+        other_deliverable_comp: form.otherDeliverableComp || false,
         // Pricing
         subtotal: subtotal,
         discount_percent: form.discountPercent,
         discount_amount: discountAmount,
         total_amount: totalAmount,
         notes: form.notes || null,
+        ...(isEditMode && form.createdAt ? { created_at: form.createdAt } : {}),
       };
 
       let quotationId: string;
+
+      // If creating order only, handle differently
+      if (form.createOrderOnly) {
+        // Create an order instead of quotation
+        const workflowStages = ["Venue & Date Confirmed", "Theme & Concept", "Shot List Created", "Equipment Arranged", "Pre-Production", "Shoot Day", "Photo Editing", "Video Editing", "Album Design", "Printing", "Delivery"];
+        const initialWorkflow: Record<string, string> = {};
+        workflowStages.forEach(s => { initialWorkflow[s] = "No"; });
+
+        const orderNumber = await generateOrderNumber();
+        const { data: order, error: orderError } = await supabase
+          .from("orders")
+          .insert({
+            order_number: orderNumber,
+            quotation_id: isEditMode ? editQuotationId : null,
+            customer_id: isValidUUID ? form.customerId : null,
+            customer_name: form.customerName,
+            customer_phone: form.customerPhone,
+            event_type: form.eventType,
+            event_date: form.eventDate || null,
+            event_end_date: form.eventDate || null,
+            event_venue: form.eventVenue || null,
+            event_city: form.eventCity || null,
+            total_amount: totalAmount,
+            final_budget: totalAmount,
+            payment_status: "Pending",
+            workflow_status: JSON.stringify(initialWorkflow),
+            created_at: form.createdAt || new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          console.error("Order creation error:", orderError);
+          throw orderError;
+        }
+
+        // Create order items (same structure as quotation items)
+        const orderItems = [];
+        
+        // Photography Services
+        form.photoServices.forEach((ps, index) => {
+          if (ps.rate > 0 || ps.type) {
+            orderItems.push({
+              order_id: order.id,
+              category: "Photography",
+              description: `Photography ${index + 1} - ${ps.type || "Standard"} (${ps.session || "Full Session"}) - ${ps.area || "All Areas"}`,
+              quantity: ps.cameras,
+              unit_price: ps.rate,
+              total_price: ps.rate,
+            });
+          }
+        });
+
+        // Videography Services
+        form.videoServices.forEach((vs, index) => {
+          if (vs.rate > 0 || vs.type) {
+            orderItems.push({
+              order_id: order.id,
+              category: "Videography",
+              description: `Videography ${index + 1} - ${vs.type || "Standard"} (${vs.session || "Full Session"}) - ${vs.area || "All Areas"}`,
+              quantity: vs.cameras,
+              unit_price: vs.rate,
+              total_price: vs.rate,
+            });
+          }
+        });
+
+        // Additional Services
+        form.additionalServices.forEach((as) => {
+          if (as.rate > 0 || as.service) {
+            const serviceName = as.service === "Other" ? as.remarks : as.service;
+            const complementaryLabel = as.complementary === "Yes" ? " (Complimentary)" : "";
+            const sessionLabel = as.session ? ` - ${as.session}` : "";
+            orderItems.push({
+              order_id: order.id,
+              category: "Additional Services",
+              description: serviceName + sessionLabel + complementaryLabel,
+              quantity: 1,
+              unit_price: as.rate,
+              total_price: as.rate,
+            });
+          }
+        });
+
+        // Album
+        if (form.numAlbums > 0) {
+          orderItems.push({
+            order_id: order.id,
+            category: "Album",
+            description: `Photo Album - ${form.albumSize || "Standard"} (${form.sheetsPerAlbum} sheets each)`,
+            quantity: form.numAlbums,
+            unit_price: 0,
+            total_price: 0,
+          });
+        }
+
+        // Print & Gifts
+        const printGiftItems = [
+          { qty: form.miniBooks, comp: form.miniBooksComp, name: "Mini Books" },
+          { qty: form.calendars, comp: form.calendarsComp, name: "Table/Wall Calendar" },
+          { qty: form.frames, comp: form.framesComp, name: "Family/Portrait Frames" },
+          { qty: form.cinematicTeaser, comp: form.cinematicTeaserComp, name: "Cinematic Teaser" },
+          { qty: form.traditionalHighlightVideo, comp: form.traditionalHighlightVideoComp, name: "Traditional Highlight Video" },
+          { qty: form.cinematicCandidVideo, comp: form.cinematicCandidVideoComp, name: "Cinematic Candid Video" },
+          { qty: form.saveTheDate, comp: form.savetheDateComp, name: "Save the Date" },
+          { qty: form.eInvitation, comp: form.eInvitationComp, name: "E-Invitation" },
+        ];
+
+        printGiftItems.forEach(item => {
+          if (item.qty > 0) {
+            const description = item.comp ? `${item.name} (Complementary)` : item.name;
+            orderItems.push({
+              order_id: order.id,
+              category: "Print & Gifts",
+              description: description,
+              quantity: item.qty,
+              unit_price: 0,
+              total_price: 0,
+            });
+          }
+        });
+
+        if (form.otherDeliverableQty > 0 && form.otherDeliverable) {
+          const description = form.otherDeliverableComp ? `${form.otherDeliverable} (Complementary)` : form.otherDeliverable;
+          orderItems.push({
+            order_id: order.id,
+            category: "Print & Gifts",
+            description: description,
+            quantity: form.otherDeliverableQty,
+            unit_price: 0,
+            total_price: 0,
+          });
+        }
+
+        if (orderItems.length > 0) {
+          const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+          if (itemsError) {
+            console.error("Order items creation error:", itemsError);
+            throw itemsError;
+          }
+        }
+
+        setMessage({ type: "success", text: "Order created successfully! Redirecting..." });
+        setTimeout(() => router.push(`/orders/${order.id}`), 1500);
+        setSaving(false);
+        return;
+      }
 
       if (isEditMode && editQuotationId) {
         // UPDATE existing quotation
@@ -523,10 +943,13 @@ function QuotationContent() {
       // Additional Services
       form.additionalServices.forEach((as) => {
         if (as.rate > 0 || as.service) {
+          const serviceName = as.service === "Other" ? as.remarks : as.service;
+          const complementaryLabel = as.complementary === "Yes" ? " (Complimentary)" : "";
+          const sessionLabel = as.session ? ` - ${as.session}` : "";
           items.push({
             quotation_id: quotationId,
             category: "Additional Services",
-            description: as.service + (as.remarks ? `: ${as.remarks}` : ""),
+            description: serviceName + sessionLabel + complementaryLabel,
             quantity: 1,
             unit_price: as.rate,
             total_price: as.rate,
@@ -547,34 +970,38 @@ function QuotationContent() {
       }
 
       // Print & Gifts
-      if (form.miniBooks > 0) {
-        items.push({
-          quotation_id: quotationId,
-          category: "Print & Gifts",
-          description: "Mini Books",
-          quantity: form.miniBooks,
-          unit_price: 0,
-          total_price: 0,
-        });
-      }
+      const printGiftItems = [
+        { qty: form.miniBooks, comp: form.miniBooksComp, name: "Mini Books" },
+        { qty: form.calendars, comp: form.calendarsComp, name: "Table/Wall Calendar" },
+        { qty: form.frames, comp: form.framesComp, name: "Family/Portrait Frames" },
+        { qty: form.cinematicTeaser, comp: form.cinematicTeaserComp, name: "Cinematic Teaser" },
+        { qty: form.traditionalHighlightVideo, comp: form.traditionalHighlightVideoComp, name: "Traditional Highlight Video" },
+        { qty: form.cinematicCandidVideo, comp: form.cinematicCandidVideoComp, name: "Cinematic Candid Video" },
+        { qty: form.saveTheDate, comp: form.savetheDateComp, name: "Save the Date" },
+        { qty: form.eInvitation, comp: form.eInvitationComp, name: "E-Invitation" },
+      ];
 
-      if (form.calendars > 0) {
-        items.push({
-          quotation_id: quotationId,
-          category: "Print & Gifts",
-          description: "Calendar (Wall / Table)",
-          quantity: form.calendars,
-          unit_price: 0,
-          total_price: 0,
-        });
-      }
+      printGiftItems.forEach(item => {
+        if (item.qty > 0) {
+          const description = item.comp ? `${item.name} (Complementary)` : item.name;
+          items.push({
+            quotation_id: quotationId,
+            category: "Print & Gifts",
+            description: description,
+            quantity: item.qty,
+            unit_price: 0,
+            total_price: 0,
+          });
+        }
+      });
 
-      if (form.frames > 0) {
+      if (form.otherDeliverableQty > 0 && form.otherDeliverable) {
+        const description = form.otherDeliverableComp ? `${form.otherDeliverable} (Complementary)` : form.otherDeliverable;
         items.push({
           quotation_id: quotationId,
           category: "Print & Gifts",
-          description: "Family & Couple Frames",
-          quantity: form.frames,
+          description: description,
+          quantity: form.otherDeliverableQty,
           unit_price: 0,
           total_price: 0,
         });
@@ -611,15 +1038,17 @@ function QuotationContent() {
       {/* Page Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-[var(--muted-foreground)]">Quotation</p>
+          <p className="text-sm font-medium text-[var(--muted-foreground)]">
+            {editOrderId ? "Order" : "Quotation"}
+          </p>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-            {isEditMode ? `Edit Quotation` : "Create Quotation"}
+            {isEditMode && editOrderId ? "Edit Order Services" : isEditMode ? `Edit Quotation` : creationMode === "order" ? "Create Order" : "Create Quotation"}
           </h2>
           {isEditMode && editQuotationNumber ? (
             <p className="mt-1 text-sm font-mono text-[var(--primary)]">{editQuotationNumber}</p>
           ) : (
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Format: <span className="font-mono text-[var(--primary)]">QT_AKP_YY_0000</span>
+              Format: <span className="font-mono text-[var(--primary)]">{editOrderId ? "ORD_AKP_YY_0000" : "QT_AKP_YY_0000"}</span>
             </p>
           )}
         </div>
@@ -636,6 +1065,52 @@ function QuotationContent() {
         </div>
       )}
 
+      {/* Mode Choice - After Customer Creation */}
+      {showModeChoice && !creationMode && (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">What would you like to do?</h3>
+          <div className="space-y-4">
+            <label className="flex items-start cursor-pointer p-4 rounded-lg border-2 border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--secondary)]/30 transition-all">
+              <input
+                type="radio"
+                name="creationMode"
+                value="quotation"
+                checked={creationMode === "quotation"}
+                onChange={() => {
+                  setCreationMode("quotation");
+                  setShowModeChoice(false);
+                }}
+                className="w-5 h-5 text-[var(--primary)] mt-0.5"
+              />
+              <div className="ml-4 flex-1">
+                <p className="font-semibold text-[var(--foreground)]">Create Quotation</p>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">Prepare a quotation for the customer to review and approve, then create an order</p>
+              </div>
+            </label>
+            <label className="flex items-start cursor-pointer p-4 rounded-lg border-2 border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--secondary)]/30 transition-all">
+              <input
+                type="radio"
+                name="creationMode"
+                value="order"
+                checked={creationMode === "order"}
+                onChange={() => {
+                  setCreationMode("order");
+                  setShowModeChoice(false);
+                }}
+                className="w-5 h-5 text-[var(--primary)] mt-0.5"
+              />
+              <div className="ml-4 flex-1">
+                <p className="font-semibold text-[var(--foreground)]">Create Order Directly</p>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">Skip the quotation and create an order directly with all service details</p>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Form Content - Show unless in mode choice selection */}
+      {(!showModeChoice || creationMode) && (
+        <>
       {/* Customer Info Summary (Read-only) */}
       <SectionCard title="Customer & Event Details" description="From customer registration">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -674,6 +1149,20 @@ function QuotationContent() {
             <span>No customer data. <a href="/customers/new" className="font-medium underline">Create a customer first</a></span>
           </div>
         )}
+      </SectionCard>
+
+      {/* Quotation Created Date */}
+      <SectionCard title="Quotation Created Date" description="Edit the date when this quotation was created">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-[var(--foreground)]">Created Date</label>
+          <input
+            type="date"
+            className={inputClass}
+            value={form.createdAt}
+            onChange={(e) => setForm({ ...form, createdAt: e.target.value })}
+          />
+          <p className="text-xs text-[var(--muted-foreground)] mt-2">Use this to set the correct date for historical quotations</p>
+        </div>
       </SectionCard>
 
       {/* Photography Services - Multiple */}
@@ -900,29 +1389,53 @@ function QuotationContent() {
                     Remove
                   </button>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-[var(--muted-foreground)]">Service Type</label>
+                    {as.service === "Other" ? (
+                      <input
+                        type="text"
+                        placeholder="Enter service name"
+                        className={inputClass}
+                        value={as.remarks.length > 0 && as.remarks !== "Additional notes..." ? as.remarks : ""}
+                        onChange={(e) => updateAdditionalService(as.id, "remarks", e.target.value)}
+                      />
+                    ) : (
+                      <select 
+                        className={selectClass}
+                        value={as.service}
+                        onChange={(e) => updateAdditionalService(as.id, "service", e.target.value)}
+                      >
+                        <option value="">Select service</option>
+                        {additionalServices.map((service) => (
+                          <option key={service} value={service}>{service}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-[var(--muted-foreground)]">Session</label>
                     <select 
                       className={selectClass}
-                      value={as.service}
-                      onChange={(e) => updateAdditionalService(as.id, "service", e.target.value)}
+                      value={as.session}
+                      onChange={(e) => updateAdditionalService(as.id, "session", e.target.value)}
                     >
-                      <option value="">Select service</option>
-                      {additionalServices.map((service) => (
-                        <option key={service} value={service}>{service}</option>
+                      <option value="">Select session</option>
+                      {sessionTypes.map((session) => (
+                        <option key={session} value={session}>{session}</option>
                       ))}
                     </select>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-[var(--muted-foreground)]">Remarks</label>
-                    <input 
-                      type="text" 
-                      placeholder="Additional notes..."
-                      className={inputClass}
-                      value={as.remarks}
-                      onChange={(e) => updateAdditionalService(as.id, "remarks", e.target.value)}
-                    />
+                    <label className="text-xs font-medium text-[var(--muted-foreground)]">Complementary</label>
+                    <select 
+                      className={selectClass}
+                      value={as.complementary || "No"}
+                      onChange={(e) => updateAdditionalService(as.id, "complementary", e.target.value)}
+                    >
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-[var(--muted-foreground)]">Rate (₹)</label>
@@ -1017,37 +1530,261 @@ function QuotationContent() {
       </SectionCard>
 
       {/* Print & Gifts */}
-      <SectionCard title="🎁 Print & Gifts" description="Optional extras">
-        <div className="grid gap-5 md:grid-cols-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--foreground)]">Mini Books</label>
-            <input 
-              type="number" 
-              min="0"
-              className={inputClass}
-              value={form.miniBooks || ""}
-              onChange={(e) => handleChange("miniBooks", parseInt(e.target.value) || 0)}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--foreground)]">Calendar (Wall / Table)</label>
-            <input 
-              type="number" 
-              min="0"
-              className={inputClass}
-              value={form.calendars || ""}
-              onChange={(e) => handleChange("calendars", parseInt(e.target.value) || 0)}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--foreground)]">Family & Couple Frames</label>
-            <input 
-              type="number" 
-              min="0"
-              className={inputClass}
-              value={form.frames || ""}
-              onChange={(e) => handleChange("frames", parseInt(e.target.value) || 0)}
-            />
+      <SectionCard title="🎁 Print & Gifts" description="Deliverables with quantity and complementary options">
+        <div className="space-y-6">
+          {/* Deliverables Grid */}
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {/* Mini Books */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Mini Books</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.miniBooks || ""}
+                  onChange={(e) => handleChange("miniBooks", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("miniBooksComp", !form.miniBooksComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.miniBooksComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.miniBooksComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Table/Wall Calendar */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Table/Wall Calendar</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.calendars || ""}
+                  onChange={(e) => handleChange("calendars", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("calendarsComp", !form.calendarsComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.calendarsComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.calendarsComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Family/Portrait Frames */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Family/Portrait Frames</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.frames || ""}
+                  onChange={(e) => handleChange("frames", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("framesComp", !form.framesComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.framesComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.framesComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Cinematic Teaser */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Cinematic Teaser</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.cinematicTeaser || ""}
+                  onChange={(e) => handleChange("cinematicTeaser", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("cinematicTeaserComp", !form.cinematicTeaserComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.cinematicTeaserComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.cinematicTeaserComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Traditional Highlight Video */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Traditional Highlight Video</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.traditionalHighlightVideo || ""}
+                  onChange={(e) => handleChange("traditionalHighlightVideo", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("traditionalHighlightVideoComp", !form.traditionalHighlightVideoComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.traditionalHighlightVideoComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.traditionalHighlightVideoComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Cinematic Candid Video */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Cinematic Candid Video</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.cinematicCandidVideo || ""}
+                  onChange={(e) => handleChange("cinematicCandidVideo", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("cinematicCandidVideoComp", !form.cinematicCandidVideoComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.cinematicCandidVideoComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.cinematicCandidVideoComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Save the Date */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Save the Date</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.saveTheDate || ""}
+                  onChange={(e) => handleChange("saveTheDate", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("savetheDateComp", !form.savetheDateComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.savetheDateComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.savetheDateComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* E-Invitation */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
+              <label className="text-sm font-semibold text-[var(--foreground)]">E-Invitation</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="Qty"
+                  className={inputClass}
+                  value={form.eInvitation || ""}
+                  onChange={(e) => handleChange("eInvitation", parseInt(e.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleChange("eInvitationComp", !form.eInvitationComp)}
+                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    form.eInvitationComp 
+                      ? "bg-green-100 text-green-700 border-green-300" 
+                      : "bg-gray-100 text-gray-700 border-gray-300"
+                  } border`}
+                  title="Toggle complementary"
+                >
+                  {form.eInvitationComp ? "✓ Comp" : "Complimentary"}
+                </button>
+              </div>
+            </div>
+
+            {/* Other (Manual Entry) */}
+            <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)] md:col-span-2 lg:col-span-1">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Other</label>
+              <div className="flex flex-col gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Enter item name"
+                  className={inputClass}
+                  value={form.otherDeliverable || ""}
+                  onChange={(e) => handleChange("otherDeliverable", e.target.value)}
+                />
+                <div className="flex gap-2 items-center">
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="Qty"
+                    className={inputClass}
+                    value={form.otherDeliverableQty || ""}
+                    onChange={(e) => handleChange("otherDeliverableQty", parseInt(e.target.value) || 0)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleChange("otherDeliverableComp", !form.otherDeliverableComp)}
+                    className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                      form.otherDeliverableComp 
+                        ? "bg-green-100 text-green-700 border-green-300" 
+                        : "bg-gray-100 text-gray-700 border-gray-300"
+                    } border`}
+                    title="Toggle complementary"
+                  >
+                    {form.otherDeliverableComp ? "✓ Comp" : "Complimentary"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </SectionCard>
@@ -1161,10 +1898,10 @@ function QuotationContent() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  {isEditMode ? "Updating..." : "Creating..."}
+                  {isEditMode && editOrderId ? "Updating Order..." : isEditMode ? "Updating..." : creationMode === "order" ? "Creating Order..." : "Creating Quotation..."}
                 </>
               ) : (
-                isEditMode ? "Update Quotation" : "Create Quotation"
+                isEditMode && editOrderId ? "Update Order" : isEditMode ? "Update Quotation" : creationMode === "order" ? "Create Order" : "Create Quotation"
               )}
             </button>
             <button 
@@ -1176,6 +1913,8 @@ function QuotationContent() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -15,8 +15,14 @@ export default function SettingsPage() {
 
   const [editingType, setEditingType] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<"payments" | "quotations" | "workflow" | "orders">("payments");
+  const [whatsappSettings, setWhatsappSettings] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_settings");
+    return saved ? JSON.parse(saved) : { order_completion: true };
+  });
 
-  const availableFields = [
+  const paymentAvailableFields = [
     { placeholder: "{customerName}", description: "Customer name" },
     { placeholder: "{orderNumber}", description: "Order ID" },
     { placeholder: "{paymentAmount}", description: "Payment amount received" },
@@ -27,12 +33,46 @@ export default function SettingsPage() {
     { placeholder: "{eventDate}", description: "Event date" },
   ];
 
+  const quotationAvailableFields = [
+    { placeholder: "{customerName}", description: "Customer name" },
+    { placeholder: "{quotationNumber}", description: "Quotation ID" },
+    { placeholder: "{quotationAmount}", description: "Total quotation amount" },
+    { placeholder: "{eventType}", description: "Event type (Wedding, Reception, etc.)" },
+    { placeholder: "{eventDate}", description: "Event date" },
+    { placeholder: "{validUntil}", description: "Quotation validity date" },
+  ];
+
+  const workflowAvailableFields = [
+    { placeholder: "{customerName}", description: "Customer name" },
+    { placeholder: "{orderNumber}", description: "Order ID" },
+    { placeholder: "{workflowStage}", description: "Workflow stage name" },
+    { placeholder: "{eventType}", description: "Event type" },
+  ];
+
+  const orderCompletionAvailableFields = [
+    { placeholder: "{customerName}", description: "Customer name" },
+    { placeholder: "{orderNumber}", description: "Order ID" },
+    { placeholder: "{eventType}", description: "Event type" },
+  ];
+
+  const availableFields = activeTab === "payments" ? paymentAvailableFields : activeTab === "quotations" ? quotationAvailableFields : activeTab === "workflow" ? workflowAvailableFields : orderCompletionAvailableFields;
+
   const defaultMessages: Record<string, string> = {
     "Initial Advance": `Hi {customerName},\n\nThank you for your Initial Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're excited to work on your {eventType}!\n\n- Aura Knot`,
     "Function Advance": `Hi {customerName},\n\nWe've received your Function Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nTotal Budget: {totalBudget}\nBalance Remaining: {balanceDue}\n\nWe're all set for your event!\n\n- Aura Knot`,
     "Printing Advance": `Hi {customerName},\n\nThank you for your Printing Advance payment of {paymentAmount} for Order #{orderNumber}.\n\nYour album printing will be prioritized!\n\nBalance Remaining: {balanceDue}\n\n- Aura Knot`,
     "Final Payment": `Hi {customerName},\n\nThank you for the Final Payment of {paymentAmount} for Order #{orderNumber}.\n\n✓ Payment Complete!\nTotal Paid: {totalBudget}\n\nYour deliverables will be prepared shortly.\n\n- Aura Knot`,
-    "Other": `Hi {customerName},\n\nWe've received a payment of {paymentAmount} for Order #{orderNumber}.\n\nPayment Method: {paymentMethod}\nBalance Remaining: {balanceDue}\n\n- Aura Knot`
+    "Other": `Hi {customerName},\n\nWe've received a payment of {paymentAmount} for Order #{orderNumber}.\n\nPayment Method: {paymentMethod}\nBalance Remaining: {balanceDue}\n\n- Aura Knot`,
+    "Quotation Pending": `Hi {customerName},\n\nWe've prepared a quotation for your {eventType}.\n\nQuotation #: {quotationNumber}\nTotal Amount: {quotationAmount}\nValid Until: {validUntil}\n\nPlease review and let us know if you have any questions.\n\n- Aura Knot`,
+    "Quotation Confirmed": `Hi {customerName},\n\nThank you for confirming Quotation #{quotationNumber}!\n\n✓ Booking Confirmed\nAmount: {quotationAmount}\n\nWe're excited to capture your {eventType}. Our team will be in touch with the next steps.\n\n- Aura Knot`,
+    "Quotation Declined": `Hi {customerName},\n\nWe received that you've declined Quotation #{quotationNumber}.\n\nWe hope to work with you in the future. If you'd like to discuss alternative options, feel free to reach out!\n\n- Aura Knot`,
+    "Photo Selection": `Hi {customerName},\n\n✓ Photo Selection Complete\n\nWe've completed the photo selection process for your {eventType}. The best shots are ready for the next phase!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Album Design": `Hi {customerName},\n\n✓ Album Design Complete\n\nYour album design for {eventType} is ready! Our creative team has crafted beautiful layouts for your memories.\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Album Printing": `Hi {customerName},\n\n✓ Album Printing In Progress\n\nYour album is now being printed with premium quality. We're creating something special for your {eventType}!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Video Editing": `Hi {customerName},\n\n✓ Video Editing Complete\n\nYour highlight video for {eventType} has been edited and is ready for delivery!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Outdoor Shoot": `Hi {customerName},\n\n✓ Outdoor Shoot Scheduled\n\nWe've scheduled the outdoor photoshoot for your {eventType}. Our team is looking forward to capturing more beautiful moments!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Album Delivery": `Hi {customerName},\n\n✓ Album Delivered\n\nYour beautiful album and deliverables are ready! Thank you for choosing Aura Knot for your {eventType}.\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Order Completed": `Hi {customerName},\n\n🎉 Your Order is Complete!\n\nThank you for trusting Aura Knot Photography for your {eventType}. All deliverables are ready for pickup/delivery.\n\nOrder #{orderNumber}\n\nWe'd love to hear from you! Please share your feedback.\n\n- Aura Knot`
   };
 
   const handleSaveMessage = (paymentType: string) => {
@@ -167,8 +207,52 @@ export default function SettingsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="WhatsApp Integration" description="Customize payment notification messages">
+      <SectionCard title="WhatsApp Integration" description="Customize notification messages">
         <div className="space-y-6">
+          {/* Tabs for Payments, Quotations and Workflow */}
+          <div className="flex gap-2 border-b border-[var(--border)] overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("payments")}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "payments"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
+                  : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              💰 Payment Messages
+            </button>
+            <button
+              onClick={() => setActiveTab("quotations")}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "quotations"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
+                  : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              📋 Quotation Messages
+            </button>
+            <button
+              onClick={() => setActiveTab("workflow")}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "workflow"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
+                  : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              🔄 Workflow Messages
+            </button>
+            <button
+              onClick={() => setActiveTab("orders")}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "orders"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
+                  : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              ✅ Order Completion
+            </button>
+          </div>
+
           {/* Available Fields Reference */}
           <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4">
             <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Available Message Fields</h4>
@@ -184,9 +268,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Payment Type Messages */}
+          {/* Message Type Messages */}
           <div className="space-y-4">
-            {paymentTypes.map((paymentType) => (
+            {activeTab === "payments" && paymentTypes.map((paymentType) => (
               <div key={paymentType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[var(--foreground)]">{paymentType}</h4>
@@ -248,6 +332,227 @@ export default function SettingsPage() {
                 )}
               </div>
             ))}
+
+            {activeTab === "quotations" && ["Quotation Pending", "Quotation Confirmed", "Quotation Declined"].map((quotationType) => (
+              <div key={quotationType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-[var(--foreground)]">{quotationType}</h4>
+                  <div className="flex gap-2">
+                    {editingType === quotationType ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveMessage(quotationType)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingType(null)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingType(quotationType);
+                            setEditingMessage(getMessageContent(quotationType));
+                          }}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleResetMessage(quotationType)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {editingType === quotationType ? (
+                  <textarea
+                    value={editingMessage}
+                    onChange={(e) => setEditingMessage(e.target.value)}
+                    className="w-full h-32 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    placeholder="Enter custom message..."
+                  />
+                ) : (
+                  <div className="bg-[var(--secondary)]/50 rounded-lg p-3 text-sm whitespace-pre-wrap text-[var(--muted-foreground)] font-mono border border-[var(--border)]">
+                    {getMessageContent(quotationType)}
+                  </div>
+                )}
+
+                {whatsappMessages[quotationType] && editingType !== quotationType && (
+                  <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    ✓ Using custom message
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {activeTab === "workflow" && ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"].map((workflowStage) => (
+              <div key={workflowStage} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-[var(--foreground)]">{workflowStage}</h4>
+                  <div className="flex gap-2">
+                    {editingType === workflowStage ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveMessage(workflowStage)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingType(null)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingType(workflowStage);
+                            setEditingMessage(getMessageContent(workflowStage));
+                          }}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleResetMessage(workflowStage)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {editingType === workflowStage ? (
+                  <textarea
+                    value={editingMessage}
+                    onChange={(e) => setEditingMessage(e.target.value)}
+                    className="w-full h-32 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    placeholder="Enter custom message..."
+                  />
+                ) : (
+                  <div className="bg-[var(--secondary)]/50 rounded-lg p-3 text-sm whitespace-pre-wrap text-[var(--muted-foreground)] font-mono border border-[var(--border)]">
+                    {getMessageContent(workflowStage)}
+                  </div>
+                )}
+
+                {whatsappMessages[workflowStage] && editingType !== workflowStage && (
+                  <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    ✓ Using custom message
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {activeTab === "orders" && (
+              <div className="space-y-4">
+                {/* Order Completion WhatsApp Enable/Disable */}
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-semibold text-[var(--foreground)]">WhatsApp Notifications</h4>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-1">Send message when order is marked as complete</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const updated = { ...whatsappSettings, order_completion: !whatsappSettings.order_completion };
+                        setWhatsappSettings(updated);
+                        localStorage.setItem("whatsapp_settings", JSON.stringify(updated));
+                      }}
+                      className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                        whatsappSettings.order_completion ? "bg-emerald-500" : "bg-gray-300"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                          whatsappSettings.order_completion ? "translate-x-7" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {whatsappSettings.order_completion && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ Enabled</p>
+                  )}
+                </div>
+
+                {/* Order Completion Message Template */}
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-[var(--foreground)]">Order Completed Message</h4>
+                    <div className="flex gap-2">
+                      {editingType === "Order Completed" ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveMessage("Order Completed")}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingType(null)}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingType("Order Completed");
+                              setEditingMessage(getMessageContent("Order Completed"));
+                            }}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleResetMessage("Order Completed")}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]"
+                          >
+                            Reset
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {editingType === "Order Completed" ? (
+                    <textarea
+                      value={editingMessage}
+                      onChange={(e) => setEditingMessage(e.target.value)}
+                      className="w-full h-32 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      placeholder="Enter custom message..."
+                    />
+                  ) : (
+                    <div className="bg-[var(--secondary)]/50 rounded-lg p-3 text-sm whitespace-pre-wrap text-[var(--muted-foreground)] font-mono border border-[var(--border)]">
+                      {getMessageContent("Order Completed")}
+                    </div>
+                  )}
+
+                  {whatsappMessages["Order Completed"] && editingType !== "Order Completed" && (
+                    <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                      ✓ Using custom message
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </SectionCard>

@@ -47,6 +47,7 @@ export default function QuotationsListPage() {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Fetch quotations from Supabase
   const fetchQuotations = async () => {
@@ -97,6 +98,73 @@ export default function QuotationsListPage() {
   useEffect(() => {
     fetchQuotations();
   }, []);
+
+  // WhatsApp integration
+  const sendWhatsAppNotification = (phone: string, message: string) => {
+    let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+  };
+
+  // Generate quotation-specific WhatsApp message with custom templates
+  const generateQuotationMessage = (
+    customerName: string,
+    quotationNumber: string,
+    quotationStatus: string,
+    amount: number,
+    eventType: string = "event",
+    eventDate: string = "",
+    validUntil: string = ""
+  ): string => {
+    const currency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
+    
+    // Get custom message from localStorage if available
+    let customMessages: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("whatsapp_messages");
+      customMessages = saved ? JSON.parse(saved) : {};
+    }
+
+    const defaultQuotationMessages: Record<string, string> = {
+      "Quotation Pending": `Hi {customerName},\n\nWe've prepared a quotation for your {eventType}.\n\nQuotation #: {quotationNumber}\nTotal Amount: {quotationAmount}\nValid Until: {validUntil}\n\nPlease review and let us know if you have any questions.\n\n- Aura Knot`,
+      "Quotation Confirmed": `Hi {customerName},\n\nThank you for confirming Quotation #{quotationNumber}!\n\n✓ Booking Confirmed\nAmount: {quotationAmount}\n\nWe're excited to capture your {eventType}. Our team will be in touch with the next steps.\n\n- Aura Knot`,
+      "Quotation Declined": `Hi {customerName},\n\nWe received that you've declined Quotation #{quotationNumber}.\n\nWe hope to work with you in the future. If you'd like to discuss alternative options, feel free to reach out!\n\n- Aura Knot`
+    };
+
+    // Use custom message if available, otherwise use default
+    let template = customMessages[quotationStatus] || defaultQuotationMessages[quotationStatus] || "";
+
+    // Replace placeholders with actual values
+    template = template
+      .replace(/{customerName}/g, customerName)
+      .replace(/{quotationNumber}/g, quotationNumber)
+      .replace(/{quotationAmount}/g, currency(amount))
+      .replace(/{eventType}/g, eventType)
+      .replace(/{validUntil}/g, validUntil);
+
+    return template;
+  };
+
+  // Send WhatsApp message for quotation status
+  const handleSendQuotationWhatsApp = (quotation: Quotation) => {
+    if (!quotation.customers?.phone) {
+      alert("Customer phone number not found");
+      return;
+    }
+
+    const whatsappMessage = generateQuotationMessage(
+      quotation.customers.name,
+      quotation.quotation_number,
+      `Quotation ${quotation.status}`,
+      quotation.total_amount,
+      quotation.event_type,
+      quotation.event_date ? formatDate(quotation.event_date) : "",
+      quotation.valid_until ? formatDate(quotation.valid_until) : ""
+    );
+
+    sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
+  };
 
   // Confirm quotation - creates order
   const handleConfirm = async (quotation: Quotation) => {
@@ -231,6 +299,20 @@ export default function QuotationsListPage() {
         })
         .eq("id", quotation.id);
       
+      // Ask user if they want to send WhatsApp notification
+      if (quotation.customers?.phone && confirm(`Booking confirmed!\n\nWould you like to send a WhatsApp confirmation to ${quotation.customers.name}?`)) {
+        const whatsappMessage = generateQuotationMessage(
+          quotation.customers.name,
+          quotation.quotation_number,
+          "Quotation Confirmed",
+          quotation.total_amount,
+          quotation.event_type,
+          quotation.event_date ? formatDate(quotation.event_date) : "",
+          quotation.valid_until ? formatDate(quotation.valid_until) : ""
+        );
+        sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
+      }
+      
       // Refresh list and redirect to order
       await fetchQuotations();
       router.push(`/orders/${newOrder.id}`);
@@ -269,6 +351,20 @@ export default function QuotationsListPage() {
       
       if (error) throw error;
       
+      // Ask user if they want to send WhatsApp notification
+      if (selectedQuotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${selectedQuotation.customers.name}?`)) {
+        const whatsappMessage = generateQuotationMessage(
+          selectedQuotation.customers.name,
+          selectedQuotation.quotation_number,
+          "Quotation Declined",
+          selectedQuotation.total_amount,
+          selectedQuotation.event_type,
+          selectedQuotation.event_date ? formatDate(selectedQuotation.event_date) : "",
+          selectedQuotation.valid_until ? formatDate(selectedQuotation.valid_until) : ""
+        );
+        sendWhatsAppNotification(selectedQuotation.customers.phone, whatsappMessage);
+      }
+      
       await fetchQuotations();
       setShowDeclineModal(false);
       setSelectedQuotation(null);
@@ -295,6 +391,20 @@ export default function QuotationsListPage() {
         .eq("status", "Draft");
       
       if (error) throw error;
+      
+      // Ask user if they want to send WhatsApp notification
+      if (quotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${quotation.customers.name} with the quotation?`)) {
+        const whatsappMessage = generateQuotationMessage(
+          quotation.customers.name,
+          quotation.quotation_number,
+          "Quotation Pending",
+          quotation.total_amount,
+          quotation.event_type,
+          quotation.event_date ? formatDate(quotation.event_date) : "",
+          quotation.valid_until ? formatDate(quotation.valid_until) : ""
+        );
+        sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
+      }
       
       await fetchQuotations();
       
@@ -741,73 +851,113 @@ export default function QuotationsListPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Edit Button */}
-                        <Link
-                          href={`/quotation?editId=${quotation.id}`}
-                          className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                        >
-                          Edit
-                        </Link>
-                        
-                        {/* PDF Button */}
-                        <Link
-                          href={`/quotations/${quotation.id}/pdf`}
-                          target="_blank"
-                          className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-                        >
-                          PDF
-                        </Link>
-
-                        {/* View Order - Only for Confirmed */}
-                        {quotation.status === "Confirmed" && quotation.order_id && (
-                          <Link
-                            href={`/orders/${quotation.order_id}`}
-                            className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
-                          >
-                            Order
-                          </Link>
-                        )}
-
-                        {/* Mark as Pending - Only for Draft */}
-                        {quotation.status === "Draft" && (
+                      <div className="flex items-center justify-center">
+                        {/* Actions Dropdown */}
+                        <div className="relative">
                           <button
-                            onClick={() => handleMarkAsPending(quotation)}
-                            disabled={pendingId === quotation.id}
-                            className="px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
+                            onClick={() => setOpenDropdownId(openDropdownId === quotation.id ? null : quotation.id)}
+                            className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--secondary)]/70 transition-colors"
                           >
-                            {pendingId === quotation.id ? "..." : "Pending"}
+                            Actions ▼
                           </button>
-                        )}
-                        
-                        {/* Confirm - Only for Draft/Pending */}
-                        {(quotation.status === "Draft" || quotation.status === "Pending") && (
-                          <>
-                            <button
-                              onClick={() => handleConfirm(quotation)}
-                              disabled={confirmingId === quotation.id}
-                              className="px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                            >
-                              {confirmingId === quotation.id ? "..." : "Confirm"}
-                            </button>
-                            <button
-                              onClick={() => handleDeclineClick(quotation)}
-                              disabled={decliningId === quotation.id}
-                              className="px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
-                            >
-                              Decline
-                            </button>
-                          </>
-                        )}
-                        
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleDeleteClick(quotation)}
-                          disabled={deletingId === quotation.id}
-                          className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
-                        >
-                          {deletingId === quotation.id ? "..." : "Delete"}
-                        </button>
+
+                          {/* Dropdown Menu */}
+                          {openDropdownId === quotation.id && (
+                            <div className="absolute right-0 mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
+                              {/* Edit */}
+                              <Link
+                                href={`/quotation?editId=${quotation.id}`}
+                                className="block px-4 py-2 text-sm text-blue-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
+                              >
+                                ✏️ Edit
+                              </Link>
+
+                              {/* PDF */}
+                              <Link
+                                href={`/quotations/${quotation.id}/pdf`}
+                                target="_blank"
+                                className="block px-4 py-2 text-sm text-purple-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
+                              >
+                                📄 View PDF
+                              </Link>
+
+                              {/* View Order - Only for Confirmed */}
+                              {quotation.status === "Confirmed" && quotation.order_id && (
+                                <Link
+                                  href={`/orders/${quotation.order_id}`}
+                                  className="block px-4 py-2 text-sm text-indigo-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
+                                >
+                                  📦 View Order
+                                </Link>
+                              )}
+
+                              {/* Mark as Pending - Only for Draft */}
+                              {quotation.status === "Draft" && (
+                                <button
+                                  onClick={() => {
+                                    handleMarkAsPending(quotation);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  disabled={pendingId === quotation.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
+                                >
+                                  {pendingId === quotation.id ? "⏳ Processing..." : "⏳ Mark as Pending"}
+                                </button>
+                              )}
+
+                              {/* Confirm - Only for Draft/Pending */}
+                              {(quotation.status === "Draft" || quotation.status === "Pending") && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      handleConfirm(quotation);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    disabled={confirmingId === quotation.id}
+                                    className="w-full text-left px-4 py-2 text-sm text-emerald-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
+                                  >
+                                    {confirmingId === quotation.id ? "⏳ Processing..." : "✅ Confirm"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDeclineClick(quotation);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    disabled={decliningId === quotation.id}
+                                    className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
+                                  >
+                                    ❌ Decline
+                                  </button>
+                                </>
+                              )}
+
+                              {/* WhatsApp */}
+                              {quotation.customers?.phone && (
+                                <button
+                                  onClick={() => {
+                                    handleSendQuotationWhatsApp(quotation);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
+                                >
+                                  💬 Send WhatsApp
+                                </button>
+                              )}
+
+                              {/* Delete */}
+                              <button
+                                onClick={() => {
+                                  handleDeleteClick(quotation);
+                                  setOpenDropdownId(null);
+                                }}
+                                disabled={deletingId === quotation.id}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-[var(--secondary)] rounded-b-lg disabled:opacity-50"
+                              >
+                                {deletingId === quotation.id ? "⏳ Deleting..." : "🗑️ Delete"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

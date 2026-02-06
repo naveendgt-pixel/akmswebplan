@@ -286,10 +286,10 @@ export default function OrdersPage() {
               Go to Quotations to confirm one →
             </Link>
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => router.push("/quotations")}
               className="mt-2 inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white"
             >
-              + Create Order Without Quotation
+              Create Quotation/Order →
             </button>
           </div>
         ) : (
@@ -368,158 +368,6 @@ export default function OrdersPage() {
           </p>
         </div>
       </div>
-
-      {/* Create Order Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--card)] p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-[var(--foreground)]">Create Order Without Quotation</h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Customer Selection */}
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">Select Existing Customer</label>
-                <select
-                  value={newOrder.customerId}
-                  onChange={(e) => {
-                    const customer = customers.find(c => c.id === e.target.value);
-                    if (customer) {
-                      setNewOrder({
-                        ...newOrder,
-                        customerId: customer.id,
-                        customerName: customer.name,
-                        customerPhone: customer.phone,
-                        customerEmail: customer.email || "",
-                      });
-                    } else {
-                      setNewOrder({ ...newOrder, customerId: "" });
-                    }
-                  }}
-                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                >
-                  <option value="">-- Or enter new customer below --</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">Customer Name *</label>
-                  <input
-                    type="text"
-                    value={newOrder.customerName}
-                    onChange={(e) => setNewOrder({ ...newOrder, customerName: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                    placeholder="Customer name"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">Phone</label>
-                  <input
-                    type="text"
-                    value={newOrder.customerPhone}
-                    onChange={(e) => setNewOrder({ ...newOrder, customerPhone: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                    placeholder="Phone number"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">Event Type *</label>
-                <input
-                  type="text"
-                  value={newOrder.eventType}
-                  onChange={(e) => setNewOrder({ ...newOrder, eventType: e.target.value })}
-                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                  placeholder="Wedding, Reception, etc."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">Event Start Date</label>
-                  <input
-                    type="date"
-                    value={newOrder.eventDate}
-                    onChange={(e) => setNewOrder({ ...newOrder, eventDate: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">Event End Date</label>
-                  <input
-                    type="date"
-                    value={newOrder.eventEndDate}
-                    onChange={(e) => setNewOrder({ ...newOrder, eventEndDate: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">Venue</label>
-                  <input
-                    type="text"
-                    value={newOrder.eventVenue}
-                    onChange={(e) => setNewOrder({ ...newOrder, eventVenue: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                    placeholder="Venue name"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-[var(--foreground)]">City</label>
-                  <input
-                    type="text"
-                    value={newOrder.eventCity}
-                    onChange={(e) => setNewOrder({ ...newOrder, eventCity: e.target.value })}
-                    className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                    placeholder="City"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)]">Total Amount (₹)</label>
-                <input
-                  type="number"
-                  value={newOrder.totalAmount || ""}
-                  onChange={(e) => setNewOrder({ ...newOrder, totalAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleCreateOrder}
-                disabled={creating}
-                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {creating ? "Creating..." : "Create Order"}
-              </button>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="flex-1 h-11 rounded-xl border border-[var(--border)] text-sm font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

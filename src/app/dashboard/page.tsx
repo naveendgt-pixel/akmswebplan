@@ -109,6 +109,14 @@ export default function DashboardPage() {
             endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         }
 
+        // Helper to convert date to YYYY-MM-DD string for date comparison
+        const toDateString = (date: Date): string => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
         // Fetch orders
         const { data: orders } = await supabase
           .from("orders")
@@ -130,87 +138,102 @@ export default function DashboardPage() {
         const allQuotations = quotations || [];
         const allExpenses = expenses || [];
 
-        // Outstanding balance and revenue - only count orders where event_end_date has passed
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Log debugging info
+        console.log("Period:", period);
+        console.log("Start Date:", toDateString(startDate));
+        console.log("End Date:", toDateString(endDate));
+        console.log("Total orders in DB:", allOrders.length);
 
-        // Helper function to parse date string and normalize to start of day
-        const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
-          if (!dateStr) return null;
-          const date = new Date(dateStr);
-          date.setHours(0, 0, 0, 0);
-          return date;
-        };
+        const startDateStr = toDateString(startDate);
+        const endDateStr = toDateString(endDate);
 
-        // Filter all orders where event has ended
-        const completedEvents = allOrders.filter(o => {
-          const eventEndDate = o.event_end_date ? getDateAtStartOfDay(o.event_end_date) : (o.event_date ? getDateAtStartOfDay(o.event_date) : null);
-          return eventEndDate && eventEndDate < today;
+        // TOTAL ORDERS - Count all orders created in the period (by order created_at date)
+        const periodCreatedOrders = allOrders.filter(o => {
+          const createdDateStr = toDateString(new Date(o.created_at));
+          return createdDateStr >= startDateStr && createdDateStr <= endDateStr;
         });
+        const totalOrders = periodCreatedOrders.length;
 
-        // Calculate stats only for completed events
-        const totalOrders = completedEvents.length;
-        const completedOrders = completedEvents.filter(o => {
-          try {
-            const workflow = o.workflow_status ? JSON.parse(o.workflow_status) : {};
-            // Order is completed only if ALL workflow stages are "Yes" (not "Not Needed" or "No")
-            const allCompleted = workflowStages.every(s => {
-              const status = workflow[s];
-              return status === "Yes";
-            });
-            return allCompleted;
-          } catch {
-            return false;
+        // Filter orders where event_end_date is in the period for other calculations
+        const periodEventOrders = allOrders.filter(o => {
+          let eventDateStr: string | null = null;
+          
+          if (o.event_end_date) {
+            eventDateStr = toDateString(new Date(o.event_end_date));
+          } else if (o.event_date) {
+            eventDateStr = toDateString(new Date(o.event_date));
           }
-        }).length;
-        const pendingOrders = totalOrders - completedOrders;
-
-        // Filter orders by period using event_date for accurate monthly/yearly reports
-        const periodOrders = completedEvents.filter(o => {
-          const orderDate = new Date(o.event_date || o.created_at);
-          return orderDate >= startDate && orderDate <= endDate;
+          
+          if (!eventDateStr) return false;
+          
+          const isInRange = eventDateStr >= startDateStr && eventDateStr <= endDateStr;
+          if (!isInRange && period === "Last Year") {
+            console.log("Order excluded:", o.order_number, "Event Date:", eventDateStr, "Range:", startDateStr, "-", endDateStr);
+          }
+          return isInRange;
         });
 
-        // For yearly revenue, use the selected period's date range
-        const yearlyOrders = periodOrders;
+        console.log("Period created orders:", totalOrders);
+        console.log("Period event orders:", periodEventOrders.length);
+
+        // COMPLETED ORDERS - where order_completed = 'Yes' AND event_end_date in period
+        const completedOrders = periodEventOrders.filter(o => o.order_completed === 'Yes').length;
+
+        // PENDING ORDERS - where order_completed = 'No' AND event_end_date in period
+        const pendingOrders = periodEventOrders.filter(o => o.order_completed === 'No').length;
+
+        // OUTSTANDING BALANCE - sum of balance_due where event_end_date is in period AND event has already passed
+        const today = new Date();
+        const todayDateStr = toDateString(today);
+        
+        const outstandingBalance = periodEventOrders.reduce((sum, o) => {
+          // Get the event date (use event_end_date, fallback to event_date)
+          let eventDateStr: string | null = null;
+          if (o.event_end_date) {
+            eventDateStr = toDateString(new Date(o.event_end_date));
+          } else if (o.event_date) {
+            eventDateStr = toDateString(new Date(o.event_date));
+          }
+          
+          // Only include balance if event date has passed
+          const eventHasPassed = eventDateStr && eventDateStr < todayDateStr;
+          if (eventHasPassed) {
+            return sum + (o.balance_due || 0);
+          }
+          return sum;
+        }, 0);
+
+        // MONTHLY/YEARLY REVENUE - orders with event_end_date in period (revenue for completed orders only)
+        const completedPeriodOrders = periodEventOrders.filter(o => o.order_completed === 'Yes');
+        const monthlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        const yearlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
+        // TOTAL EXPENSES - expenses for orders where event_end_date is in period
+        const completedOrderIds = new Set(completedPeriodOrders.map(o => o.id));
+        const filteredExpenses = allExpenses.filter(e => e.order_id && completedOrderIds.has(e.order_id));
+        const totalExpensesAmount = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+        // NET PROFIT - (revenue - expenses) for completed orders where event_end_date is in period
+        const totalProfit = yearlyRevenue - totalExpensesAmount;
 
         // Filter quotations by period using event_date
         const periodQuotations = allQuotations.filter(q => {
-          const quotationDate = new Date(q.event_date || q.created_at);
-          return quotationDate >= startDate && quotationDate <= endDate;
+          const quotationDateStr = toDateString(new Date(q.event_date || q.created_at));
+          return quotationDateStr >= startDateStr && quotationDateStr <= endDateStr;
         });
-
-        // Revenue calculation for completed period orders
-        const completedPeriodOrders = periodOrders;
-
-        // Revenue calculation for completed yearly orders
-        const completedYearlyOrders = yearlyOrders;
-
-        const monthlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-        const yearlyRevenue = completedYearlyOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-        
-        // Filter expenses by completed orders only
-        const completedOrderIds = new Set(completedYearlyOrders.map(o => o.id));
-        const filteredExpenses = allExpenses.filter(e => e.order_id && completedOrderIds.has(e.order_id));
-        const totalExpensesAmount = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-        const totalProfit = yearlyRevenue - totalExpensesAmount;
-
-        // Outstanding balance - only count orders where event_end_date has passed
-        const outstandingBalance = completedEvents.reduce((sum, o) => {
-          return sum + (o.balance_due || 0);
-        }, 0);
 
         const totalQuotations = periodQuotations.length;
         const confirmedQuotations = periodQuotations.filter(q => q.status === "Confirmed").length;
         const pendingQuotations = periodQuotations.filter(q => q.status === "Pending").length;
 
-        // Calculate workflow summary
+        // WORKFLOW PROGRESS - cumulative workflow status for orders where event_end_date is in period
         const workflowStats: Record<string, { completed: number; total: number }> = {};
         workflowStages.forEach(stage => {
-          workflowStats[stage] = { completed: 0, total: totalOrders };
+          workflowStats[stage] = { completed: 0, total: periodEventOrders.length };
         });
 
-        completedEvents.forEach(order => {
+        // Count workflow stages for all orders in the period (completed or pending)
+        periodEventOrders.forEach(order => {
           try {
             const workflow = order.workflow_status ? JSON.parse(order.workflow_status) : {};
             workflowStages.forEach(stage => {

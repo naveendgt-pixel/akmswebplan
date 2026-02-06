@@ -120,13 +120,14 @@ export default function NewCustomerPage() {
         customerId: customer.id,
         customerName: form.name,
         customerPhone: form.phone,
-        eventType: form.eventType,
+        eventType: eventTypeValue,
         eventDate: form.eventStartDate,
         eventEndDate: form.eventEndDate,
         eventVenue: form.eventLocation,
         eventCity: form.eventCity,
         packageType: form.packageType,
         session: form.session,
+        showModeChoice: "true",
       });
 
       router.push(`/quotation?${params.toString()}`);
