@@ -49,6 +49,7 @@ interface QuotationForm {
   customerPhone: string;
   eventType: string;
   eventDate: string;
+  eventEndDate: string;
   eventVenue: string;
   eventCity: string;
   packageType: string;
@@ -131,6 +132,7 @@ const initialForm: QuotationForm = {
   customerPhone: "",
   eventType: "",
   eventDate: "",
+  eventEndDate: "",
   eventVenue: "",
   eventCity: "",
   packageType: "",
@@ -207,6 +209,7 @@ function QuotationContent() {
       const customerPhone = searchParams.get("customerPhone") || "";
       const eventType = searchParams.get("eventType") || "";
       const eventDate = searchParams.get("eventDate") || "";
+      const eventEndDate = searchParams.get("eventEndDate") || "";
       const eventVenue = searchParams.get("eventVenue") || "";
       const eventCity = searchParams.get("eventCity") || "";
       const packageType = searchParams.get("packageType") || "";
@@ -219,6 +222,7 @@ function QuotationContent() {
         customerPhone,
         eventType,
         eventDate,
+        eventEndDate,
         eventVenue,
         eventCity,
         packageType,
@@ -319,6 +323,7 @@ function QuotationContent() {
         customerPhone: quotation.customers?.phone || "",
         eventType: quotation.event_type || "",
         eventDate: quotation.event_date || "",
+        eventEndDate: quotation.event_end_date || "",
         eventVenue: quotation.event_venue || "",
         eventCity: quotation.event_city || "",
         packageType: quotation.package_type || "",
@@ -456,6 +461,7 @@ function QuotationContent() {
         customerPhone: order.customers?.phone || "",
         eventType: order.event_type || "",
         eventDate: order.event_date || "",
+        eventEndDate: order.event_end_date || "",
         eventVenue: order.event_venue || "",
         eventCity: order.event_city || "",
         packageType: order.package_type || "",
@@ -669,6 +675,7 @@ function QuotationContent() {
         customer_id: isValidUUID ? form.customerId : null,
         event_type: form.eventType,
         event_date: form.eventDate || null,
+        event_end_date: form.eventEndDate || null,
         event_venue: form.eventVenue || null,
         event_city: form.eventCity || null,
         package_type: form.packageType || null,
@@ -738,7 +745,7 @@ function QuotationContent() {
             customer_phone: form.customerPhone,
             event_type: form.eventType,
             event_date: form.eventDate || null,
-            event_end_date: form.eventDate || null,
+            event_end_date: form.eventEndDate || null,
             event_venue: form.eventVenue || null,
             event_city: form.eventCity || null,
             total_amount: totalAmount,
@@ -1115,32 +1122,76 @@ function QuotationContent() {
       <SectionCard title="Customer & Event Details" description="From customer registration">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">Customer Name</p>
-            <p className="font-medium text-[var(--foreground)]">{form.customerName || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Customer Name</label>
+            <input
+              type="text"
+              value={form.customerName}
+              onChange={(e) => handleChange("customerName", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">Phone</p>
-            <p className="font-medium text-[var(--foreground)]">{form.customerPhone || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Phone</label>
+            <input
+              type="tel"
+              value={form.customerPhone}
+              onChange={(e) => handleChange("customerPhone", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">Event Type</p>
-            <p className="font-medium text-[var(--foreground)]">{form.eventType || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Event Type</label>
+            <input
+              type="text"
+              value={form.eventType}
+              onChange={(e) => handleChange("eventType", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">Event Date</p>
-            <p className="font-medium text-[var(--foreground)]">{form.eventDate || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Event Start</label>
+            <input
+              type="date"
+              value={form.eventDate}
+              onChange={(e) => handleChange("eventDate", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
+            <label className="text-xs text-[var(--muted-foreground)] block">Event End</label>
+            <input
+              type="date"
+              value={form.eventEndDate}
+              onChange={(e) => handleChange("eventEndDate", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3 sm:col-span-2">
-            <p className="text-xs text-[var(--muted-foreground)]">Venue</p>
-            <p className="font-medium text-[var(--foreground)]">{form.eventVenue || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Venue</label>
+            <input
+              type="text"
+              value={form.eventVenue}
+              onChange={(e) => handleChange("eventVenue", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">City</p>
-            <p className="font-medium text-[var(--foreground)]">{form.eventCity || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">City</label>
+            <input
+              type="text"
+              value={form.eventCity}
+              onChange={(e) => handleChange("eventCity", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">Package</p>
-            <p className="font-medium text-[var(--foreground)]">{form.packageType || "—"}</p>
+            <label className="text-xs text-[var(--muted-foreground)] block">Package</label>
+            <input
+              type="text"
+              value={form.packageType}
+              onChange={(e) => handleChange("packageType", e.target.value)}
+              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+            />
           </div>
         </div>
         {!form.customerName && (

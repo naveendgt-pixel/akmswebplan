@@ -107,6 +107,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
 
         setQuotation(quotationData);
         setItems(itemsData || []);
+        console.debug('Fetched quotation for PDF:', quotationData);
       } catch (error) {
         console.error("Error fetching quotation:", error);
       } finally {
@@ -168,6 +169,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
     // Generate filename with quotation number and customer name
     const customerName = quotation.customers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Customer';
     const pdfFilename = `${quotation.quotation_number}_${customerName}.pdf`;
+
+    // Compute safe start/end date strings for PDF content
+    const startDateStr = quotation.event_date ? formatDate(quotation.event_date) : '';
+    const endDateStr = quotation.event_end_date ? formatDate(quotation.event_end_date) : '';
 
     // Try programmatic pdf generation using html2pdf.js
     try {
@@ -419,11 +424,11 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               <div class="logo-contact">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
             </div>
             <div class="doc-info">
-              <div class="doc-title">Quotation</div>
-              <div class="doc-number">${quotation.quotation_number}</div>
-              <div class="doc-date">Date: ${formatDate(quotation.created_at)}</div>
-              <div class="status-badge status-${quotation.status.toLowerCase()}">${quotation.status}</div>
-            </div>
+                  <div class="doc-title">Quotation</div>
+                  <div class="doc-number">${quotation.quotation_number}</div>
+                  <div class="doc-date">Date: ${formatDate(quotation.created_at)}</div>
+                  <div class="status-badge status-${quotation.status.toLowerCase()}">${quotation.status}</div>
+                </div>
           </div>
 
           <div class="section">
@@ -441,8 +446,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               </div>
               <div class="info-box">
                 <div class="info-label">Event Date</div>
-                <div class="info-value">${formatDate(quotation.event_date)}</div>
-                ${quotation.event_end_date ? `<div class="info-sub">To: ${formatDate(quotation.event_end_date)}</div>` : ""}
+                <div class="info-value">${startDateStr ? startDateStr : '-'}${endDateStr ? ` — ${endDateStr}` : ''}</div>
               </div>
               <div class="info-box">
                 <div class="info-label">Venue</div>
@@ -535,9 +539,29 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       // Set document title to include filename for PDF save dialog
       printWindow.document.title = pdfFilename.replace('.pdf', '');
       printWindow.focus();
+
+      // On some mobile browsers the new window may load slowly or
+      // suppress immediate print; use onload and a longer fallback timeout
+      printWindow.onload = () => {
+        try {
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+          }, 300);
+        } catch (e) {
+          // If printing fails, leave the window open so user can manually Save as PDF
+          console.error('Print failed after onload:', e);
+        }
+      };
+
+      // Fallback: attempt to print after a few seconds if onload doesn't fire
       setTimeout(() => {
-        printWindow.print();
-      }, 500);
+        try {
+          printWindow.print();
+        } catch (e) {
+          console.debug('Fallback print attempt failed:', e);
+        }
+      }, 3000);
     }
   };
 
@@ -673,10 +697,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                   </div>
                   <div className="bg-[#faf6f2] p-3 rounded border-l-[3px] border-l-[#5b1e2d]">
                     <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Event Date</div>
-                    <div className="text-sm font-semibold text-gray-900">{formatDate(quotation.event_date)}</div>
-                    {quotation.event_end_date && (
-                      <div className="text-xs text-gray-500 mt-1">To: {formatDate(quotation.event_end_date)}</div>
-                    )}
+                    <div className="text-sm font-semibold text-gray-900">
+                      {quotation.event_date ? (formatDate(quotation.event_date) === 'N/A' ? '-' : formatDate(quotation.event_date)) : '-'}
+                      {quotation.event_end_date && (formatDate(quotation.event_end_date) !== 'N/A') && ` — ${formatDate(quotation.event_end_date)}`}
+                    </div>
                   </div>
                   <div className="bg-[#faf6f2] p-3 rounded border-l-[3px] border-l-[#5b1e2d]">
                     <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Venue</div>

@@ -378,12 +378,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   // WhatsApp notification helper
   const sendWhatsAppNotification = (phone: string, message: string) => {
     if (!phone) return;
-    // Clean phone number - remove spaces and add country code if needed
-    let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
-    if (cleanPhone.length === 10) {
-      cleanPhone = '91' + cleanPhone; // Add India country code
-    }
-    // Open WhatsApp with pre-filled message
+    // Normalize phone: keep digits, strip leading zeros, ensure country code
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.replace(/^0+/, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    if (cleanPhone.length < 10) return; // invalid
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
   };

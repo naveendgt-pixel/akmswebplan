@@ -399,6 +399,24 @@ export default function EditQuotationPage({ params }: { params: Promise<{ id: st
             <p className="font-medium text-[var(--foreground)]">{quotation.customers?.email || "—"}</p>
           </div>
           <div>
+            <p className="text-xs text-[var(--muted-foreground)]">Event Start</p>
+            <input
+              type="date"
+              className={inputClass}
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-[var(--muted-foreground)]">Event End</p>
+            <input
+              type="date"
+              className={inputClass}
+              value={eventEndDate}
+              onChange={(e) => setEventEndDate(e.target.value)}
+            />
+          </div>
+          <div>
             <p className="text-xs text-[var(--muted-foreground)]">Status</p>
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
               quotation.status === "Draft" ? "bg-gray-100 text-gray-700" :

@@ -72,6 +72,20 @@ export default function OrdersPage() {
     totalAmount: 0,
   });
 
+  // Send order details via WhatsApp
+  const sendOrderWhatsApp = (order: Order) => {
+    const phone = order.customers?.[0]?.phone || "";
+    if (!phone) return alert("Customer phone not available");
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.replace(/^0+/, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    if (cleanPhone.length < 10) return alert('Invalid customer phone number');
+
+    const message = `Hello ${order.customers?.[0]?.name || ''},\n\nYour order ${order.order_number} is ready.\nTotal: ₹${(order.final_budget || order.total_amount || 0).toLocaleString('en-IN')}\nEvent: ${order.event_type} on ${formatDate(order.event_date)}\n\nView: ${typeof window !== 'undefined' ? window.location.origin + '/orders/' + order.id : '/orders/' + order.id}`;
+    const encoded = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
+  };
+
   // Fetch orders from Supabase
   useEffect(() => {
     const fetchData = async () => {
@@ -310,11 +324,23 @@ export default function OrdersPage() {
               return (
                 <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
                   <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="flex items-center gap-3 min-w-[200px]">
+                    {/* Order ID column: individual visible column with Send action */}
+                    <div className="flex flex-col items-start justify-center gap-2 min-w-[160px] px-2">
                       <Link href={`/orders/${order.id}`} className="font-semibold text-[var(--primary)] hover:underline whitespace-nowrap">{order.order_number}</Link>
-                      <div className="min-w-0">
-                        <p className="font-medium text-[var(--foreground)] truncate">{order.customers?.[0]?.name || "—"}</p>
-                        <p className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.phone || ""}</p>
+                      <div className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.name || '—'}</div>
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          onClick={() => sendOrderWhatsApp(order)}
+                          className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                          Send
+                        </button>
+                        <Link
+                          href={`/orders/${order.id}`}
+                          className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                          View
+                        </Link>
                       </div>
                     </div>
 
@@ -331,7 +357,8 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 hidden">
+                      {/* preserved for layout parity (hidden as order id column now contains View) */}
                       <Link href={`/orders/${order.id}`} className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] whitespace-nowrap">View</Link>
                     </div>
                   </div>

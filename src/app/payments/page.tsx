@@ -49,8 +49,11 @@ const expenseCategories = ["Travel", "Equipment", "Staff", "Printing", "Album", 
 
 // WhatsApp integration for payments
 const sendWhatsAppNotification = (phone: string, message: string) => {
-  let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+  if (!phone) return;
+  let cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.replace(/^0+/, '');
   if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+  if (cleanPhone.length < 10) return;
   const encodedMessage = encodeURIComponent(message);
   window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
 };

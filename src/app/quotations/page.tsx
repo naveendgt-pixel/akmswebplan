@@ -47,7 +47,6 @@ export default function QuotationsListPage() {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Fetch quotations from Supabase
   const fetchQuotations = async () => {
@@ -101,8 +100,11 @@ export default function QuotationsListPage() {
 
   // WhatsApp integration
   const sendWhatsAppNotification = (phone: string, message: string) => {
-    let cleanPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+    if (!phone) return;
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.replace(/^0+/, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    if (cleanPhone.length < 10) return;
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
   };
@@ -152,18 +154,10 @@ export default function QuotationsListPage() {
       alert("Customer phone number not found");
       return;
     }
-
-    const whatsappMessage = generateQuotationMessage(
-      quotation.customers.name,
-      quotation.quotation_number,
-      `Quotation ${quotation.status}`,
-      quotation.total_amount,
-      quotation.event_type,
-      quotation.event_date ? formatDate(quotation.event_date) : "",
-      quotation.valid_until ? formatDate(quotation.valid_until) : ""
-    );
-
-    sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    const pdfUrl = `${origin}/quotations/${quotation.id}/pdf`;
+    const message = `Hi ${quotation.customers.name || ''},\n\nYou can view and download your quotation here:\n${pdfUrl}\n\nQuotation #: ${quotation.quotation_number}\nTotal: ₹${quotation.total_amount.toLocaleString('en-IN')}`;
+    sendWhatsAppNotification(quotation.customers.phone, message);
   };
 
   // Confirm quotation - creates order
@@ -851,113 +845,77 @@ export default function QuotationsListPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center justify-center">
-                        {/* Actions Dropdown */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdownId(openDropdownId === quotation.id ? null : quotation.id)}
-                            className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--secondary)]/70 transition-colors"
+                      <div className="flex items-center justify-center gap-2">
+                        <Link
+                          href={`/quotation?editId=${quotation.id}`}
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                          Edit
+                        </Link>
+
+                        <Link
+                          href={`/quotations/${quotation.id}/pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                        >
+                          View PDF
+                        </Link>
+
+                        {quotation.status === 'Confirmed' && quotation.order_id && (
+                          <Link
+                            href={`/orders/${quotation.order_id}`}
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
                           >
-                            Actions ▼
+                            View Order
+                          </Link>
+                        )}
+
+                        {quotation.status === 'Draft' && (
+                          <button
+                            onClick={() => handleMarkAsPending(quotation)}
+                            disabled={pendingId === quotation.id}
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                          >
+                            {pendingId === quotation.id ? 'Processing...' : 'Mark as Pending'}
                           </button>
+                        )}
 
-                          {/* Dropdown Menu */}
-                          {openDropdownId === quotation.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50">
-                              {/* Edit */}
-                              <Link
-                                href={`/quotation?editId=${quotation.id}`}
-                                className="block px-4 py-2 text-sm text-blue-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
-                              >
-                                ✏️ Edit
-                              </Link>
+                        {(quotation.status === 'Draft' || quotation.status === 'Pending') && (
+                          <>
+                            <button
+                              onClick={() => handleConfirm(quotation)}
+                              disabled={confirmingId === quotation.id}
+                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                            >
+                              {confirmingId === quotation.id ? 'Processing...' : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => handleDeclineClick(quotation)}
+                              disabled={decliningId === quotation.id}
+                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                            >
+                              Decline
+                            </button>
+                          </>
+                        )}
 
-                              {/* PDF */}
-                              <Link
-                                href={`/quotations/${quotation.id}/pdf`}
-                                target="_blank"
-                                className="block px-4 py-2 text-sm text-purple-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
-                              >
-                                📄 View PDF
-                              </Link>
+                        {quotation.customers?.phone && (
+                          <button
+                            onClick={() => handleSendQuotationWhatsApp(quotation)}
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                          >
+                            Send WhatsApp
+                          </button>
+                        )}
 
-                              {/* View Order - Only for Confirmed */}
-                              {quotation.status === "Confirmed" && quotation.order_id && (
-                                <Link
-                                  href={`/orders/${quotation.order_id}`}
-                                  className="block px-4 py-2 text-sm text-indigo-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
-                                >
-                                  📦 View Order
-                                </Link>
-                              )}
-
-                              {/* Mark as Pending - Only for Draft */}
-                              {quotation.status === "Draft" && (
-                                <button
-                                  onClick={() => {
-                                    handleMarkAsPending(quotation);
-                                    setOpenDropdownId(null);
-                                  }}
-                                  disabled={pendingId === quotation.id}
-                                  className="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
-                                >
-                                  {pendingId === quotation.id ? "⏳ Processing..." : "⏳ Mark as Pending"}
-                                </button>
-                              )}
-
-                              {/* Confirm - Only for Draft/Pending */}
-                              {(quotation.status === "Draft" || quotation.status === "Pending") && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      handleConfirm(quotation);
-                                      setOpenDropdownId(null);
-                                    }}
-                                    disabled={confirmingId === quotation.id}
-                                    className="w-full text-left px-4 py-2 text-sm text-emerald-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
-                                  >
-                                    {confirmingId === quotation.id ? "⏳ Processing..." : "✅ Confirm"}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      handleDeclineClick(quotation);
-                                      setOpenDropdownId(null);
-                                    }}
-                                    disabled={decliningId === quotation.id}
-                                    className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-[var(--secondary)] border-b border-[var(--border)] disabled:opacity-50"
-                                  >
-                                    ❌ Decline
-                                  </button>
-                                </>
-                              )}
-
-                              {/* WhatsApp */}
-                              {quotation.customers?.phone && (
-                                <button
-                                  onClick={() => {
-                                    handleSendQuotationWhatsApp(quotation);
-                                    setOpenDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-[var(--secondary)] border-b border-[var(--border)]"
-                                >
-                                  💬 Send WhatsApp
-                                </button>
-                              )}
-
-                              {/* Delete */}
-                              <button
-                                onClick={() => {
-                                  handleDeleteClick(quotation);
-                                  setOpenDropdownId(null);
-                                }}
-                                disabled={deletingId === quotation.id}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-[var(--secondary)] rounded-b-lg disabled:opacity-50"
-                              >
-                                {deletingId === quotation.id ? "⏳ Deleting..." : "🗑️ Delete"}
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => handleDeleteClick(quotation)}
+                          disabled={deletingId === quotation.id}
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === quotation.id ? 'Deleting...' : 'Delete'}
+                        </button>
                       </div>
                     </td>
                   </tr>
