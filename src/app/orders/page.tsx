@@ -83,7 +83,14 @@ export default function OrdersPage() {
 
     const message = `Hello ${order.customers?.[0]?.name || ''},\n\nYour order ${order.order_number} is ready.\nTotal: ₹${(order.final_budget || order.total_amount || 0).toLocaleString('en-IN')}\nEvent: ${order.event_type} on ${formatDate(order.event_date)}\n\nView: ${typeof window !== 'undefined' ? window.location.origin + '/orders/' + order.id : '/orders/' + order.id}`;
     const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
+    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`;
+    try {
+      const w = window.open(url, '_blank');
+      if (!w) window.location.href = url;
+      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
+    } catch (e) {
+      window.location.href = url;
+    }
   };
 
   // Fetch orders from Supabase

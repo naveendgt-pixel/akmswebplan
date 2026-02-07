@@ -106,7 +106,14 @@ export default function QuotationsListPage() {
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return;
     const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
+    try {
+      const w = window.open(url, '_blank');
+      if (!w) window.location.href = url;
+      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
+    } catch (e) {
+      window.location.href = url;
+    }
   };
 
   // Generate quotation-specific WhatsApp message with custom templates
