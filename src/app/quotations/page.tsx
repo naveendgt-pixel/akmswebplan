@@ -79,11 +79,25 @@ export default function QuotationsListPage() {
       if (error) {
         console.error("Error fetching quotations:", error);
       } else {
-        // Fix: customers is returned as an array, but Quotation expects an object or null
+        // Fix: customers may be returned as an array, map to expected shape
+        type SupabaseQuotationRow = Omit<Quotation, 'customers'> & {
+          customers?: Array<{ name: string; phone: string }> | { name: string; phone: string } | null;
+        };
+
+        const rows = (data ?? []) as SupabaseQuotationRow[];
         setQuotations(
-          (data || []).map((q: any) => ({
-            ...q,
-            customers: Array.isArray(q.customers) ? (q.customers[0] || null) : q.customers ?? null,
+          rows.map((q) => ({
+            id: q.id,
+            quotation_number: q.quotation_number,
+            event_type: q.event_type,
+            event_date: q.event_date ?? null,
+            event_city: q.event_city ?? null,
+            total_amount: q.total_amount ?? 0,
+            status: q.status ?? '',
+            order_id: q.order_id ?? null,
+            valid_until: q.valid_until ?? null,
+            created_at: q.created_at,
+            customers: Array.isArray(q.customers) ? (q.customers[0] ?? null) : (q.customers ?? null),
           }))
         );
       }

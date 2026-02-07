@@ -79,10 +79,26 @@ export default function ServicesPage() {
         if (error) {
           console.error("Error fetching quotations:", error);
         } else {
-          setQuotations(
-            (data || []).map((q: any) => ({
-              ...q,
-              customers: Array.isArray(q.customers) ? (q.customers[0] || null) : q.customers ?? null,
+          type SupabaseQuotationRow = Omit<Quotation, 'customers'> & {
+            customers?: Array<{ name: string; phone: string }> | { name: string; phone: string } | null;
+          };
+
+          const rows = (data ?? []) as SupabaseQuotationRow[];
+          setQuotations(rows.map((q) => ({
+              id: q.id,
+              quotation_number: q.quotation_number,
+              customer_id: q.customer_id,
+              event_type: q.event_type,
+              event_date: q.event_date ?? null,
+              event_city: q.event_city ?? null,
+              event_venue: q.event_venue ?? null,
+              total_amount: q.total_amount ?? 0,
+              subtotal: q.subtotal ?? 0,
+              discount_amount: q.discount_amount ?? 0,
+              tax_amount: q.tax_amount ?? 0,
+              status: q.status ?? '',
+              created_at: q.created_at,
+              customers: Array.isArray(q.customers) ? (q.customers[0] ?? null) : (q.customers ?? null),
             }))
           );
         }

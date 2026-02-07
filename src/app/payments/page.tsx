@@ -59,8 +59,8 @@ const sendWhatsAppNotification = (phone: string, message: string) => {
   try {
     const w = window.open(url, '_blank');
     if (!w) window.location.href = url;
-    else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
-  } catch (e) {
+    else setTimeout(() => { try { w.focus(); } catch {} }, 500);
+  } catch {
     window.location.href = url;
   }
 };
@@ -188,7 +188,7 @@ export default function PaymentsPage() {
 
       try {
         // Fetch orders
-        const { data: ordersData } = await supabase
+        const ordersResp = await supabase
           .from("orders")
           .select(`
             id,
@@ -202,28 +202,49 @@ export default function PaymentsPage() {
           `)
           .order("created_at", { ascending: false });
 
+        type SupabaseOrderRow = {
+          id: string;
+          order_number: string;
+          event_type: string;
+          total_amount: number | null;
+          amount_paid: number | null;
+          balance_due: number | null;
+          payment_status: string | null;
+          customers?: Array<{ name: string; phone: string }> | { name: string; phone: string } | null;
+        };
+
+        const ordersData = (ordersResp.data ?? []) as SupabaseOrderRow[];
+
         setOrders(
-          (ordersData || []).map((o: any) => ({
-            ...o,
-            customers: Array.isArray(o.customers) ? (o.customers[0] || null) : o.customers ?? null,
+          ordersData.map((o) => ({
+            id: o.id,
+            order_number: o.order_number,
+            event_type: o.event_type,
+            total_amount: o.total_amount ?? 0,
+            amount_paid: o.amount_paid ?? 0,
+            balance_due: o.balance_due ?? 0,
+            payment_status: o.payment_status ?? "",
+            customers: Array.isArray(o.customers) ? (o.customers[0] ?? null) : (o.customers ?? null),
           }))
         );
 
         // Fetch payments
-        const { data: paymentsData } = await supabase
+        const paymentsResp = await supabase
           .from("payments")
           .select("*")
           .order("created_at", { ascending: false });
 
-        setPayments(paymentsData || []);
+        const paymentsData = (paymentsResp.data ?? []) as Payment[];
+        setPayments(paymentsData);
 
         // Fetch expenses (we'll create this table if needed)
-        const { data: expensesData } = await supabase
+        const expensesResp = await supabase
           .from("expenses")
           .select("*")
           .order("created_at", { ascending: false });
 
-        setExpenses(expensesData || []);
+        const expensesData = (expensesResp.data ?? []) as Expense[];
+        setExpenses(expensesData);
 
       } catch (err) {
         console.error("Error fetching data:", err);

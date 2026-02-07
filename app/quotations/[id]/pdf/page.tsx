@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { formatDate } from "@/lib/constants";
@@ -175,22 +176,29 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
     const endDateStr = quotation.event_end_date ? formatDate(quotation.event_end_date) : '';
 
     // Try programmatic pdf generation using html2pdf.js
-    try {
-      const html2pdfModule = await import('html2pdf.js');
-      const html2pdf = (html2pdfModule && (html2pdfModule as any).default) || html2pdfModule;
+      try {
+      const html2pdfModule: unknown = await import('html2pdf.js');
+      let html2pdfFunc: unknown;
+      if (html2pdfModule && typeof html2pdfModule === 'object' && 'default' in (html2pdfModule as Record<string, unknown>)) {
+        html2pdfFunc = (html2pdfModule as Record<string, unknown>).default;
+      } else {
+        html2pdfFunc = html2pdfModule;
+      }
       const element = document.getElementById('pdf-root');
-      if (element && html2pdf) {
-        const opt = {
+      if (element && typeof html2pdfFunc === 'function') {
+        const opt: Record<string, unknown> = {
           margin: [10, 10, 10, 10],
           filename: pdfFilename,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        } as any;
-        
+        };
+
         // Create a clone to avoid modifying original
         const clone = element.cloneNode(true) as HTMLElement;
-        await html2pdf().set(opt).from(clone).save();
+        const builder = (html2pdfFunc as unknown as () => unknown)();
+        const builderObj = builder as unknown as { set: (o: Record<string, unknown>) => { from: (el: HTMLElement) => { save: () => void } } };
+        builderObj.set(opt).from(clone).save();
         return;
       }
     } catch (err) {
@@ -419,7 +427,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
         <div class="container">
           <div class="header">
             <div>
-              <img src="${window.location.origin}/ak-logo-final.png" alt="Aura Knot" class="logo-img">
+              <svg class="logo-img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80" role="img" aria-label="Aura Knot">
+                <rect width="100" height="100" rx="12" ry="12" fill="#5b1e2d" />
+                <text x="50" y="58" font-family="Segoe UI, Tahoma, Geneva, Verdana, sans-serif" font-size="36" fill="#fff" font-weight="700" text-anchor="middle">AK</text>
+              </svg>
               <div class="logo-contact" style="font-weight: 600; color: #5b1e2d;">Naveen B T, Founder & Creative Director</div>
               <div class="logo-contact">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
             </div>
@@ -641,7 +652,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       {/* Preview Area */}
       <div className="pt-20 pb-10 px-2 sm:px-4">
         <div className="max-w-4xl mx-auto">
-          <div className="text-sm text-gray-500 text-center mb-3">When saving as PDF, uncheck "Headers and footers" in the print dialog to avoid printing page URL/header details.</div>
+          <div className="text-sm text-gray-500 text-center mb-3">When saving as PDF, uncheck &quot;Headers and footers&quot; in the print dialog to avoid printing page URL/header details.</div>
           {/* Preview Label */}
           <div className="text-center mb-4">
             <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">
@@ -658,7 +669,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               {/* Header */}
               <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start pb-5 border-b-2 border-[#5b1e2d] mb-5">
                 <div>
-                  <img src="/ak-logo-final.png" alt="Aura Knot" className="h-16 w-auto" />
+                  <Image src="/ak-logo-final.png" alt="Aura Knot" width={64} height={64} className="h-16 w-auto" />
                   <div className="text-sm mt-2 font-semibold text-[#5b1e2d]">Naveen B T, Founder & Creative Director</div>
                   <div className="text-sm text-gray-500">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
                 </div>

@@ -92,18 +92,19 @@ export default function ReportsPage() {
 
       // Fetch all orders with event dates
       let query = supabase.from("orders").select("id, order_number, customer_name, event_type, event_date, event_end_date, total_amount, amount_paid, balance_due, status");
-      
+
       if (eventType) {
         query = query.eq("event_type", eventType);
       }
 
-      const { data: ordersData } = await query.order("event_date", { ascending: false });
-      
+      const ordersResp = await query.order("event_date", { ascending: false });
+      const ordersData = (ordersResp.data ?? null) as OrderSummary[] | null;
+
       // Filter orders: only include completed events (event_end_date has passed)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      const completedEventOrders = (ordersData || []).filter(o => {
+
+      const completedEventOrders = (ordersData || []).filter((o: OrderSummary) => {
         const eventEndDate = o.event_end_date ? getDateAtStartOfDay(o.event_end_date) : (o.event_date ? getDateAtStartOfDay(o.event_date) : null);
         return eventEndDate && eventEndDate < today;
       });
@@ -119,14 +120,15 @@ export default function ReportsPage() {
 
       // Fetch expenses related to completed orders only
       const completedOrderIds = new Set(periodFilteredOrders.map(o => o.id));
-      const { data: expensesData } = await supabase.from("expenses").select("category, amount, order_id");
-      
+      const expensesResp = await supabase.from("expenses").select("category, amount, order_id");
+      const expensesData = (expensesResp.data ?? []) as Array<{ category: string; amount: number; order_id?: string | null }>;
+
       // Filter expenses to only include those from completed orders in the period
-      const filteredExpensesData = (expensesData || []).filter(e => e.order_id && completedOrderIds.has(e.order_id));
-      
+      const filteredExpensesData = expensesData.filter(e => e.order_id && completedOrderIds.has(e.order_id));
+
       // Group expenses by category
       const expenseMap: Record<string, number> = {};
-      (filteredExpensesData || []).forEach((e: { category: string; amount: number }) => {
+      filteredExpensesData.forEach((e) => {
         expenseMap[e.category] = (expenseMap[e.category] || 0) + e.amount;
       });
       
@@ -155,11 +157,11 @@ export default function ReportsPage() {
   // Generate PDF Report
   const generatePDF = (reportType: "pnl" | "summary") => {
     const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${reportType === "pnl" ? "Profit & Loss Statement" : "Financial Summary"} - Aura Knot</title>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <title>${reportType === "pnl" ? "Profit &amp; Loss Statement" : "Financial Summary"} - Aura Knot</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; background: #fff; }
@@ -193,11 +195,13 @@ export default function ReportsPage() {
 <body>
   <div class="header">
     <div>
-      <img src="${window.location.origin}/ak-logo-final.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" />
-      <div class="logo-sub">Photography & Events</div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="180" height="48" style="display:block;margin-bottom:6px;" role="img" aria-label="Aura Knot">
+        <text x="0" y="24" font-family="Segoe UI, Tahoma, Geneva, Verdana, sans-serif" font-size="18" fill="#6366f1">Aura Knot</text>
+      </svg>
+      <div class="logo-sub">Photography &amp; Events</div>
     </div>
     <div class="doc-info">
-      <div class="doc-title">${reportType === "pnl" ? "PROFIT & LOSS STATEMENT" : "FINANCIAL SUMMARY"}</div>
+      <div class="doc-title">${reportType === "pnl" ? "PROFIT &amp; LOSS STATEMENT" : "FINANCIAL SUMMARY"}</div>
       <div class="doc-period">Period: ${period || "All Time"} ${eventType ? `• ${eventType}` : ""}</div>
       <div class="doc-period">Generated: ${formatDate(new Date().toISOString())}</div>
     </div>
@@ -396,12 +400,12 @@ export default function ReportsPage() {
             </div>
           </div>
         )}
-        <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3">
           <button 
             onClick={() => generatePDF("pnl")}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-6 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
           >
-            📄 Download P&L Report
+              📄 Download P&amp;L Report
           </button>
           <button 
             onClick={() => generatePDF("summary")}
@@ -436,13 +440,13 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <SectionCard title="Available Reports" description="Profit & Loss and summary exports">
+      <SectionCard title="Available Reports" description="Profit &amp; Loss and summary exports">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="group relative overflow-hidden rounded-xl border border-[var(--border)] bg-gradient-to-br from-[var(--secondary)]/30 to-transparent p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
             <div className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/10 text-lg">
               📈
             </div>
-            <h3 className="text-base font-semibold text-[var(--foreground)]">Profit & Loss Statement</h3>
+            <h3 className="text-base font-semibold text-[var(--foreground)]">Profit &amp; Loss Statement</h3>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
               Comprehensive income and expense breakdown with profit margins
             </p>

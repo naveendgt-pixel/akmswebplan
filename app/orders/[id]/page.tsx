@@ -205,15 +205,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const profit = effectiveBudget - totalExpenses;
   const balanceDue = effectiveBudget - totalPayments;
 
-  const photographyItems = items.filter((i) => i.category?.toLowerCase() === "photography" || i.description.toLowerCase().includes("photography"));
-  const videographyItems = items.filter((i) => i.category?.toLowerCase() === "videography" || i.description.toLowerCase().includes("videography"));
-  const additionalItems = items.filter(
-    (i) =>
-      i.category?.toLowerCase() !== "photography" &&
-      i.category?.toLowerCase() !== "videography" &&
-      !i.description.toLowerCase().includes("photography") &&
-      !i.description.toLowerCase().includes("videography")
-  );
+  // Item grouping helpers removed — not currently used in this view
 
   // Get expenses for a specific service (matches by description/category)
   const getExpensesForService = (serviceDescription: string) => {
@@ -224,9 +216,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return getExpensesForService(serviceDescription).reduce((sum, e) => sum + e.amount, 0);
   };
 
-  const getServiceCategoryTotal = (categoryItems: OrderItem[]) => {
-    return categoryItems.reduce((sum, i) => sum + i.total_price, 0);
-  };
+  // Service category total helper removed (unused)
 
   // Get all unique service descriptions for the expense dropdown
   const getServiceCategories = () => {
@@ -388,8 +378,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const w = window.open(url, '_blank');
       if (!w) window.location.href = url;
-      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
-    } catch (e) {
+      else setTimeout(() => { try { w.focus(); } catch { } }, 500);
+    } catch {
       window.location.href = url;
     }
   };
@@ -734,7 +724,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
             </button>
           </div>
 
-          {serviceExpenses.length > 0 ? (
+          {hasExpenses ? (
             <div className="px-4 py-3 border-t border-[var(--border)]">
               <div className="space-y-2">
                 {serviceExpenses.map((expense) => (

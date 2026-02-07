@@ -34,12 +34,7 @@ interface Customer {
   email: string | null;
 }
 
-const statusColors: Record<string, string> = {
-  Confirmed: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  "In Progress": "bg-amber-100 text-amber-700 border-amber-200",
-  Completed: "bg-blue-100 text-blue-700 border-blue-200",
-  Cancelled: "bg-red-100 text-red-700 border-red-200",
-};
+// statusColors defined previously but not currently used in UI — removed to avoid lint warnings
 
 const paymentStatusColors: Record<string, string> = {
   Pending: "bg-amber-100 text-amber-700 border-amber-200",
@@ -50,27 +45,15 @@ const paymentStatusColors: Record<string, string> = {
 export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
   const [filter, setFilter] = useState("All");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [, setShowCreateModal] = useState(false);
 
   // Create order form state
-  const [newOrder, setNewOrder] = useState({
-    customerId: "",
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
-    eventType: "",
-    eventDate: "",
-    eventEndDate: "",
-    eventVenue: "",
-    eventCity: "",
-    totalAmount: 0,
-  });
+  // Order creation state removed (not currently used in this view)
 
   // Send order details via WhatsApp
   const sendOrderWhatsApp = (order: Order) => {
@@ -87,8 +70,8 @@ export default function OrdersPage() {
     try {
       const w = window.open(url, '_blank');
       if (!w) window.location.href = url;
-      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
-    } catch (e) {
+      else setTimeout(() => { try { w.focus(); } catch { } }, 500);
+    } catch {
       window.location.href = url;
     }
   };
@@ -139,85 +122,7 @@ export default function OrdersPage() {
     fetchData();
   }, []);
 
-  // Generate next order number
-  const generateOrderNumber = () => {
-    const year = new Date().getFullYear().toString().slice(-2);
-    const existingNumbers = orders
-      .map(o => {
-        const match = o.order_number?.match(/_(\d{4})$/);
-        return match ? parseInt(match[1]) : 0;
-      })
-      .filter(n => !isNaN(n));
-    const nextNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
-    return `ORD_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
-  };
-
-  // Create order without quotation
-  const handleCreateOrder = async () => {
-    if (!supabase) return;
-    if (!newOrder.customerName || !newOrder.eventType) {
-      alert("Please fill in Customer Name and Event Type");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const orderNumber = generateOrderNumber();
-      const initialWorkflow: Record<string, string> = {};
-      workflowStages.forEach(s => { initialWorkflow[s] = "No"; });
-
-      const { data, error } = await supabase.from("orders").insert({
-        order_number: orderNumber,
-        quotation_id: null,
-        customer_id: newOrder.customerId || null,
-        customer_name: newOrder.customerName,
-        customer_phone: newOrder.customerPhone,
-        customer_email: newOrder.customerEmail,
-        event_type: newOrder.eventType,
-        event_date: newOrder.eventDate || null,
-        event_end_date: newOrder.eventEndDate || null,
-        event_venue: newOrder.eventVenue || null,
-        event_city: newOrder.eventCity || null,
-        total_amount: newOrder.totalAmount,
-        final_budget: newOrder.totalAmount,
-        amount_paid: 0,
-        balance_due: newOrder.totalAmount,
-        status: "Confirmed",
-        payment_status: "Pending",
-        delivery_status: "Pending",
-        workflow_status: JSON.stringify(initialWorkflow),
-      }).select().single();
-
-      if (error) throw error;
-
-      alert(`Order ${orderNumber} created successfully!`);
-      setShowCreateModal(false);
-      setNewOrder({
-        customerId: "",
-        customerName: "",
-        customerPhone: "",
-        customerEmail: "",
-        eventType: "",
-        eventDate: "",
-        eventEndDate: "",
-        eventVenue: "",
-        eventCity: "",
-        totalAmount: 0,
-      });
-      
-      // Navigate to the new order
-      if (data?.id) {
-        router.push(`/orders/${data.id}`);
-      } else {
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error("Error creating order:", err);
-      alert("Failed to create order");
-    } finally {
-      setCreating(false);
-    }
-  };
+  // Order creation flow is currently not exposed in this view; helper functions removed to avoid unused-variable lint warnings.
 
   // Filter orders
   const filteredOrders = orders.filter((o) => {

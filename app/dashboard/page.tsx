@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import SectionCard from "@/components/SectionCard";
@@ -307,8 +308,8 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6 px-2 sm:px-4 max-w-7xl w-full mx-auto">
       {/* Page Header */}
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3 mb-2 md:mb-0">
-          <img src="/Untitled-1.png" alt="Logo" className="h-10 w-10 rounded-lg shadow" />
+          <div className="flex items-center gap-3 mb-2 md:mb-0">
+          <Image src="/Untitled-1.png" alt="Logo" width={40} height={40} className="rounded-lg shadow" />
           <div>
             <p className="text-sm font-medium text-[var(--muted-foreground)]">Dashboard</p>
             <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Overview</h2>
