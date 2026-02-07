@@ -4,6 +4,7 @@ import { useState } from "react";
 import SectionCard from "@/components/SectionCard";
 import { useTheme } from "@/lib/ThemeContext";
 import { paymentTypes } from "@/lib/constants";
+import PushSubscribe from "@/components/PushSubscribe";
 
 export default function SettingsPage() {
   const { theme, setTheme, colorTheme, setColorTheme, resolvedTheme } = useTheme();
@@ -570,6 +571,35 @@ export default function SettingsPage() {
             <p className="mt-2 text-xs text-[var(--muted-foreground)]">
               Event Management System v1.0.0
             </p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Push Notifications" description="Web push subscription & test send">
+        <div className="space-y-4">
+          <PushSubscribe />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/sendPush', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'Test Notification', body: 'This is a test push from Aura Knot', url: '/' })
+                  });
+                  const j = await res.json();
+                  if (!res.ok) throw new Error(j.error || 'Send failed');
+                  alert('Test notification queued. Check device.');
+                } catch (err: any) {
+                  console.error(err);
+                  alert('Failed to send test notification: ' + (err.message || err));
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white"
+            >
+              Send Test Notification
+            </button>
+            <p className="text-sm text-[var(--muted-foreground)]">Use this to verify subscriptions and delivery.</p>
           </div>
         </div>
       </SectionCard>
