@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import SectionCard from "@/components/SectionCard";
 import { eventTypes, formatDate } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
@@ -39,8 +39,8 @@ export default function ReportsPage() {
     return date;
   };
 
-  // Fetch report data
-  const fetchReportData = async () => {
+  // Fetch report data (memoized)
+  const fetchReportData = useCallback(async () => {
     if (!supabase) return;
 
     try {
@@ -136,11 +136,14 @@ export default function ReportsPage() {
     } catch (error) {
       console.error("Error fetching report data:", error);
     }
-  };
+  }, [period, eventType, customStartDate, customEndDate]);
 
   useEffect(() => {
-    fetchReportData();
-  }, [period, eventType, customStartDate, customEndDate, fetchReportData]);
+    const id = setTimeout(() => {
+      fetchReportData();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [fetchReportData]);
 
   // Calculate totals
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
