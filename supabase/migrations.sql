@@ -64,3 +64,16 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_deliverable_comp BOOLEAN DEFAU
 -- Add more migrations below as needed:
 -- ============================================================
 
+-- Push subscriptions for Web Push (VAPID)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	endpoint text NOT NULL,
+	keys jsonb,
+	user_agent text,
+	customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+	enabled boolean DEFAULT true,
+	created_at timestamptz DEFAULT now(),
+	last_seen timestamptz
+);
+
+
