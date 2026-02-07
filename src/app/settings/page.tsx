@@ -590,9 +590,10 @@ export default function SettingsPage() {
                   const j = await res.json();
                   if (!res.ok) throw new Error(j.error || 'Send failed');
                   alert('Test notification queued. Check device.');
-                } catch (err: any) {
-                  console.error(err);
-                  alert('Failed to send test notification: ' + (err.message || err));
+                } catch (err: unknown) {
+                  const error = err as Error;
+                  console.error(error);
+                  alert('Failed to send test notification: ' + (error.message || String(error)));
                 }
               }}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white"
