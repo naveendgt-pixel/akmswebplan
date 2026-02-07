@@ -30,7 +30,6 @@ export default function ReportsPage() {
   const [customEndDate, setCustomEndDate] = useState("");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [expenses, setExpenses] = useState<ExpenseSummary[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // Helper function to parse date string and normalize to start of day
   const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
@@ -43,7 +42,6 @@ export default function ReportsPage() {
   // Fetch report data
   const fetchReportData = async () => {
     if (!supabase) return;
-    setLoading(true);
 
     try {
       // Calculate date range based on period
@@ -137,14 +135,12 @@ export default function ReportsPage() {
 
     } catch (error) {
       console.error("Error fetching report data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchReportData();
-  }, [period, eventType, customStartDate, customEndDate]);
+  }, [period, eventType, customStartDate, customEndDate, fetchReportData]);
 
   // Calculate totals
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);

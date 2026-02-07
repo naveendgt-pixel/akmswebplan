@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { navItems } from "@/lib/constants";
 import AuthButton from "@/components/AuthButton";
@@ -47,13 +48,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       try {
         // setSession will populate Supabase client session from tokens in the URL
         // Log minimal info for debugging (avoid printing full tokens)
-        // eslint-disable-next-line no-console
         console.debug("OAuth tokens found in URL hash. Setting Supabase session...", {
           access_preview: access_token?.slice(0, 8),
           refresh_present: Boolean(refresh_token),
         });
         await supabase.auth.setSession({ access_token, refresh_token });
-        // eslint-disable-next-line no-console
         console.debug("Supabase session set from URL hash.");
         // redirect to dashboard for a smoother UX if not already there
         if (typeof window !== "undefined" && window.location.pathname !== "/dashboard") {
@@ -66,7 +65,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         // remove tokens from URL for cleanliness
         try {
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-        } catch (e) {
+        } catch {
           /* ignore */
         }
       }
@@ -78,7 +77,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (oauthBypass && typeof window !== 'undefined' && window.location.pathname === '/') {
       try {
         window.location.replace('/dashboard');
-      } catch (e) {
+      } catch {
         /* ignore */
       }
     }
@@ -106,7 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       mounted = false;
       listener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [oauthBypass]);
 
   if (loading) {
     return (
@@ -145,7 +144,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {mobileMenuOpen ? "✕" : "☰"}
             </button>
             <div className="flex h-9 w-9 xs:h-10 xs:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] shadow-lg shadow-[var(--primary)]/25 overflow-hidden">
-              <img src="/Untitled-1.png" alt="Aura Knot Logo" className="h-8 w-8 xs:h-9 xs:w-9 object-contain" />
+              <Image src="/Untitled-1.png" alt="Aura Knot Logo" width={36} height={36} className="h-8 w-8 xs:h-9 xs:w-9 object-contain" />
               <span className="sr-only">Aura Knot</span>
             </div>
             <div className="hidden xs:block">
@@ -177,7 +176,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] shadow-lg overflow-hidden">
-                <img src="/Untitled-1.png" alt="Aura Knot Logo" className="h-9 w-9 object-contain" />
+                <Image src="/Untitled-1.png" alt="Aura Knot Logo" width={36} height={36} className="h-9 w-9 object-contain" />
                 <span className="sr-only">Aura Knot</span>
               </div>
             </div>

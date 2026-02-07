@@ -43,7 +43,6 @@ export default function AuthButton() {
 
   const handleSignIn = async () => {
     if (oauthDisabled) {
-      // eslint-disable-next-line no-console
       console.warn('OAuth sign-in disabled via NEXT_PUBLIC_DISABLE_OAUTH');
       return;
     }
@@ -54,14 +53,12 @@ export default function AuthButton() {
         ? (process.env.NEXT_PUBLIC_SITE_URL as string)
         : (typeof window !== "undefined" ? window.location.origin : "");
       const redirectTo = siteOrigin ? `${siteOrigin.replace(/\/$/, "")}/dashboard` : undefined;
-      // eslint-disable-next-line no-console
       console.debug("Starting Google OAuth sign-in", { redirectTo });
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: redirectTo ? { redirectTo } : undefined,
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Google sign-in failed:", err);
       throw err;
     }
@@ -72,7 +69,6 @@ export default function AuthButton() {
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Sign-out failed:", err);
     } finally {
       setEmail(null);
