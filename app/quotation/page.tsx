@@ -334,7 +334,7 @@ function QuotationContent() {
         } else if (item.category === "Additional Services" || item.category === "Additional") {
           // Parse description to extract service, session, and complementary status (robust)
           let desc = (item.description || "").trim();
-          let complementary = /complim|complem/i.test(desc) ? "Yes" : "No";
+          const complementary = /complim|complem/i.test(desc) ? "Yes" : "No";
 
           // Remove any parenthetical complimentary text like (Complimentary), (Complementary), (Complimentary - No Worries)
           desc = desc.replace(/\s*\((?:complim|complem)[^)]+\)\s*/i, '').trim();
@@ -492,7 +492,7 @@ function QuotationContent() {
         } else if (item.category === "Additional Services" || item.category === "Additional") {
           // Parse description to extract service, session, and complementary status (robust)
           let desc = (item.description || "").trim();
-          let complementary = /complim|complem/i.test(desc) ? "Yes" : "No";
+          const complementary = /complim|complem/i.test(desc) ? "Yes" : "No";
 
           // Remove any parenthetical complimentary text like (Complimentary), (Complementary), (Complimentary - No Worries)
           desc = desc.replace(/\s*\((?:complim|complem)[^)]+\)\s*/i, '').trim();
@@ -606,7 +606,7 @@ function QuotationContent() {
   const totalAmount = subtotal - discountAmount;
 
   // Handle form changes
-  const handleChange = (field: keyof QuotationForm, value: string | number | boolean) => {
+  const handleChange = (field: keyof QuotationForm, value: string | number | boolean | string[]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -1148,6 +1148,8 @@ function QuotationContent() {
         const uniqueQuotationNumber = await ensureUniqueQuotationNumber(quotationNumber);
         const validUntil = new Date();
         validUntil.setDate(validUntil.getDate() + 30);
+        createdQuotationNumber = uniqueQuotationNumber;
+        createdValidUntil = validUntil.toISOString().split("T")[0];
 
         const { data: quotation, error: quotationError } = await supabase
           .from("quotations")

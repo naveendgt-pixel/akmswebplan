@@ -633,6 +633,8 @@ Thank you for choosing Aura Knot Photography! 📸`;
         paymentForm.payment_type
       );
 
+      await maybeSendPaymentAutomation(paymentForm.payment_type || "Other", whatsappMessage);
+
       // Ask user if they want to send WhatsApp notification
       if (order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
         sendWhatsAppNotification(order.customer_phone, whatsappMessage);
@@ -987,6 +989,8 @@ Thank you for choosing Aura Knot Photography! 📸`;
                             order.event_type
                           );
                           
+                          await maybeSendWorkflowAutomation(stage, workflowMessage);
+
                           if (confirm(`Stage marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
                             sendWhatsAppNotification(order.customer_phone, workflowMessage);
                           }
@@ -1078,6 +1082,8 @@ Thank you for choosing Aura Knot Photography! 📸`;
                       order.event_type
                     );
                     
+                    await maybeSendOrderCompletionAutomation(completionMessage);
+
                     if (confirm(`Order marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
                       sendWhatsAppNotification(order.customer_phone, completionMessage);
                     }

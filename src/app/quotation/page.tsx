@@ -607,7 +607,7 @@ function QuotationContent() {
   const totalAmount = subtotal - discountAmount;
 
   // Handle form changes
-  const handleChange = (field: keyof QuotationForm, value: string | number | boolean) => {
+  const handleChange = (field: keyof QuotationForm, value: string | number | boolean | string[]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -738,6 +738,98 @@ function QuotationContent() {
     const match = lastNumber.match(/_(\d{4})$/);
     const nextNum = match ? parseInt(match[1]) + 1 : 1;
     return `ORD_AKP_${year}_${nextNum.toString().padStart(4, "0")}`;
+  };
+
+  const getAutomationSettings = (): Record<string, boolean> => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_automation");
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const formatPhoneForMetaWhatsApp = (phone: string): string | null => {
+    if (!phone) return null;
+    let cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.startsWith("0")) cleanPhone = cleanPhone.replace(/^0+/, "");
+    if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+    if (cleanPhone.length < 10) return null;
+    return cleanPhone;
+  };
+
+  const sendMetaWhatsAppMessage = async (phone: string, message: string) => {
+    const to = formatPhoneForMetaWhatsApp(phone);
+    if (!to) return;
+    try {
+      await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, message }),
+      });
+    } catch (err) {
+      console.error("Error sending Meta WhatsApp message:", err);
+    }
+  };
+
+  const generateQuotationMessage = (
+    customerName: string,
+    quotationNumber: string,
+    quotationStatus: string,
+    amount: number,
+    eventType: string = "event",
+    eventDate: string = "",
+    validUntil: string = ""
+  ): string => {
+    const currency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
+
+    let customMessages: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("whatsapp_messages");
+      customMessages = saved ? JSON.parse(saved) : {};
+    }
+
+    const defaultQuotationMessages: Record<string, string> = {
+      "Quotation Created": `Hi {customerName},\n\nYour quotation has been created for {eventType}.\n\nQuotation #: {quotationNumber}\nTotal Amount: {quotationAmount}\nValid Until: {validUntil}\n\nPlease review and let us know if you have any questions.\n\n- Aura Knot`,
+      "Quotation Pending": `Hi {customerName},\n\nWe've prepared a quotation for your {eventType}.\n\nQuotation #: {quotationNumber}\nTotal Amount: {quotationAmount}\nValid Until: {validUntil}\n\nPlease review and let us know if you have any questions.\n\n- Aura Knot`,
+      "Quotation Confirmed": `Hi {customerName},\n\nThank you for confirming Quotation #{quotationNumber}!\n\n✓ Booking Confirmed\nAmount: {quotationAmount}\n\nWe're excited to capture your {eventType}. Our team will be in touch with the next steps.\n\n- Aura Knot`,
+      "Quotation Declined": `Hi {customerName},\n\nWe received that you've declined Quotation #{quotationNumber}.\n\nWe hope to work with you in the future. If you'd like to discuss alternative options, feel free to reach out!\n\n- Aura Knot`,
+    };
+
+    let template = customMessages[quotationStatus] || defaultQuotationMessages[quotationStatus] || "";
+
+    template = template
+      .replace(/{customerName}/g, customerName)
+      .replace(/{quotationNumber}/g, quotationNumber)
+      .replace(/{quotationAmount}/g, currency(amount))
+      .replace(/{eventType}/g, eventType)
+      .replace(/{eventDate}/g, eventDate)
+      .replace(/{validUntil}/g, validUntil);
+
+    return template;
+  };
+
+  const maybeSendAutomationMessage = async (statusKey: string, payload: {
+    customerName: string;
+    customerPhone: string;
+    quotationNumber: string;
+    totalAmount: number;
+    eventType: string;
+    eventDate: string;
+    validUntil: string;
+  }) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[statusKey]) return;
+    if (!payload.customerPhone) return;
+
+    const whatsappMessage = generateQuotationMessage(
+      payload.customerName || "",
+      payload.quotationNumber || "",
+      statusKey,
+      payload.totalAmount || 0,
+      payload.eventType || "",
+      payload.eventDate || "",
+      payload.validUntil || ""
+    );
+
+    await sendMetaWhatsAppMessage(payload.customerPhone, whatsappMessage);
   };
 
   // Handle form submission (Create or Update)
@@ -1027,6 +1119,8 @@ function QuotationContent() {
         const quotationNumber = await generateQuotationNumber();
         const validUntil = new Date();
         validUntil.setDate(validUntil.getDate() + 30);
+        createdQuotationNumber = quotationNumber;
+        createdValidUntil = validUntil.toISOString().split("T")[0];
 
         const { data: quotation, error: quotationError } = await supabase
           .from("quotations")

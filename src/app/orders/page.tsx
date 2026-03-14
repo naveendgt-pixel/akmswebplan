@@ -70,8 +70,8 @@ export default function OrdersPage() {
     try {
       const w = window.open(url, '_blank');
       if (!w) window.location.href = url;
-      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
-    } catch (e) {
+      else setTimeout(() => { try { w.focus(); } catch { } }, 500);
+    } catch {
       window.location.href = url;
     }
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import SectionCard from "@/components/SectionCard";
 import { eventTypes, formatDate } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
@@ -30,7 +30,6 @@ export default function ReportsPage() {
   const [customEndDate, setCustomEndDate] = useState("");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [expenses, setExpenses] = useState<ExpenseSummary[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // Helper function to parse date string and normalize to start of day
   const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
@@ -41,10 +40,8 @@ export default function ReportsPage() {
   };
 
   // Fetch report data
-  const fetchReportData = async () => {
+  const fetchReportData = useCallback(async () => {
     if (!supabase) return;
-    setLoading(true);
-
     try {
       // Calculate date range based on period
       const now = new Date();
@@ -138,13 +135,13 @@ export default function ReportsPage() {
     } catch (error) {
       console.error("Error fetching report data:", error);
     } finally {
-      setLoading(false);
+      // no-op
     }
-  };
+  }, [period, eventType, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchReportData();
-  }, [period, eventType, customStartDate, customEndDate]);
+  }, [fetchReportData]);
 
   // Calculate totals
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);

@@ -16,17 +16,10 @@ export default function SettingsPage() {
   const [editingType, setEditingType] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"payments" | "quotations" | "workflow" | "orders">("payments");
-  const [whatsappSettings, setWhatsappSettings] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
-    const saved = localStorage.getItem("whatsapp_settings");
-    return saved ? JSON.parse(saved) : { order_completion: true };
-  });
 
   const quotationAutomationKeys = ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"];
   const paymentAutomationKeys = [...paymentTypes, "Other"];
   const workflowAutomationKeys = ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"];
-  const orderAutomationKeys = ["Order Completed"];
-
   const [whatsappAutomation, setWhatsappAutomation] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
     const saved = localStorage.getItem("whatsapp_automation");

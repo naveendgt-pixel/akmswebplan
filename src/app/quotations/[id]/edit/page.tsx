@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  additionalServices,
-  albumSizes,
-  coverageAreas,
-  coverageTypes,
-  sessionTypes,
-} from "@/lib/constants";
+import { albumSizes } from "@/lib/constants";
 
 interface QuotationItem {
   id: string;
