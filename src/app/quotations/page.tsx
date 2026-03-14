@@ -152,12 +152,10 @@ export default function QuotationsListPage() {
       statusKey,
       quotation.total_amount,
       quotation.event_type,
-      quotation.event_date ? formatDate(quotation.event_date) : "",
       quotation.valid_until ? formatDate(quotation.valid_until) : ""
     );
     await sendMetaWhatsAppMessage(quotation.customers.phone, whatsappMessage);
   };
-
   const sendWhatsAppNotification = (phone: string, message: string) => {
     if (!phone) return;
     let cleanPhone = phone.replace(/\D/g, '');
@@ -165,15 +163,21 @@ export default function QuotationsListPage() {
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return;
     const encodedMessage = encodeURIComponent(message);
-    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
     try {
-      const w = window.open(url, '_blank');
-      if (!w) window.location.href = url;
-      else setTimeout(() => { try { w.focus(); } catch (e) {} }, 500);
-    } catch (e) {
-      window.location.href = url;
+      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+      if (isMobile) {
+        window.location.href = waUrl;
+        return;
+      }
+      const w = window.open(waUrl, '_blank');
+      if (!w) window.location.href = waUrl;
+      else setTimeout(() => { try { w.focus(); } catch { } }, 500);
+    } catch {
+      window.location.href = waUrl;
     }
   };
+
 
   // Generate quotation-specific WhatsApp message with custom templates
   const generateQuotationMessage = (
@@ -182,7 +186,6 @@ export default function QuotationsListPage() {
     quotationStatus: string,
     amount: number,
     eventType: string = "event",
-    eventDate: string = "",
     validUntil: string = ""
   ): string => {
     const currency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
@@ -369,7 +372,6 @@ export default function QuotationsListPage() {
           "Quotation Confirmed",
           quotation.total_amount,
           quotation.event_type,
-          quotation.event_date ? formatDate(quotation.event_date) : "",
           quotation.valid_until ? formatDate(quotation.valid_until) : ""
         );
         sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
@@ -423,7 +425,6 @@ export default function QuotationsListPage() {
           "Quotation Declined",
           selectedQuotation.total_amount,
           selectedQuotation.event_type,
-          selectedQuotation.event_date ? formatDate(selectedQuotation.event_date) : "",
           selectedQuotation.valid_until ? formatDate(selectedQuotation.valid_until) : ""
         );
         sendWhatsAppNotification(selectedQuotation.customers.phone, whatsappMessage);
@@ -466,7 +467,6 @@ export default function QuotationsListPage() {
           "Quotation Pending",
           quotation.total_amount,
           quotation.event_type,
-          quotation.event_date ? formatDate(quotation.event_date) : "",
           quotation.valid_until ? formatDate(quotation.valid_until) : ""
         );
         sendWhatsAppNotification(quotation.customers.phone, whatsappMessage);
@@ -519,171 +519,6 @@ export default function QuotationsListPage() {
       alert("Failed to delete quotation. Please try again.");
     } finally {
       setDeletingId(null);
-    }
-  };
-
-  // Generate PDF for quotation
-  const generatePDF = async (quotation: Quotation) => {
-    if (!supabase) return;
-    
-    try {
-      // Fetch full quotation data
-      const { data: fullQuotation } = await supabase
-        .from("quotations")
-        .select("*")
-        .eq("id", quotation.id)
-        .single();
-      
-      // Fetch quotation items
-      const { data: items } = await supabase
-        .from("quotation_items")
-        .select("*")
-        .eq("quotation_id", quotation.id);
-      
-      // Fetch customer data
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("id", fullQuotation?.customer_id)
-        .single();
-
-      // Create PDF content using HTML
-      const pdfContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Quotation - ${quotation.quotation_number}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #4F46E5; padding-bottom: 20px; }
-            .logo { font-size: 28px; font-weight: bold; color: #4F46E5; }
-            .company-info { font-size: 12px; color: #666; margin-top: 5px; }
-            .quotation-title { font-size: 24px; font-weight: bold; margin: 20px 0 10px; color: #1F2937; }
-            .quotation-number { font-size: 14px; color: #4F46E5; font-weight: 600; }
-            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
-            .info-box { background: #F9FAFB; padding: 20px; border-radius: 10px; border: 1px solid #E5E7EB; }
-            .info-box h3 { font-size: 14px; color: #6B7280; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-            .info-box p { font-size: 14px; color: #1F2937; margin: 5px 0; }
-            .info-box .highlight { font-weight: 600; font-size: 16px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th { background: #4F46E5; color: white; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; }
-            td { padding: 12px; border-bottom: 1px solid #E5E7EB; font-size: 14px; }
-            tr:nth-child(even) { background: #F9FAFB; }
-            .amount { text-align: right; font-weight: 600; }
-            .totals { margin-top: 20px; margin-left: auto; width: 300px; }
-            .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB; }
-            .totals-row.grand-total { border-bottom: none; background: #4F46E5; color: white; padding: 15px; border-radius: 8px; margin-top: 10px; font-size: 18px; font-weight: bold; }
-            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #6B7280; border-top: 1px solid #E5E7EB; padding-top: 20px; }
-            .terms { margin-top: 30px; background: #FEF3C7; padding: 15px; border-radius: 8px; font-size: 12px; }
-            .terms h4 { color: #92400E; margin-bottom: 10px; }
-            .terms ul { margin-left: 20px; color: #78350F; }
-            .status-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-            .status-draft { background: #E5E7EB; color: #374151; }
-            .status-pending { background: #FEF3C7; color: #92400E; }
-            .status-confirmed { background: #D1FAE5; color: #065F46; }
-            @media print { body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">🎬 AURA KNOT MEDIA</div>
-            <div class="company-info">Premium Wedding & Event Photography Services</div>
-          </div>
-          
-          <div class="quotation-title">QUOTATION</div>
-          <div class="quotation-number">${quotation.quotation_number}</div>
-          <span class="status-badge status-${quotation.status.toLowerCase()}">${quotation.status}</span>
-          
-          <div class="info-grid">
-            <div class="info-box">
-              <h3>Customer Details</h3>
-              <p class="highlight">${customer?.name || quotation.customers?.name || "—"}</p>
-              <p>📞 ${customer?.phone || quotation.customers?.phone || "—"}</p>
-              <p>📧 ${customer?.email || "—"}</p>
-              <p>📍 ${customer?.city || "—"}</p>
-            </div>
-            <div class="info-box">
-              <h3>Event Details</h3>
-              <p class="highlight">${fullQuotation?.event_type || quotation.event_type}</p>
-              <p>📅 ${formatDate(quotation.event_date)}</p>
-              <p>📍 ${fullQuotation?.event_venue || "—"}, ${quotation.event_city || "—"}</p>
-              <p>📦 Package: ${fullQuotation?.package_type || "Custom"}</p>
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Qty</th>
-                <th style="text-align: right;">Unit Price</th>
-                <th style="text-align: right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(items || []).map(item => `
-                <tr>
-                  <td>${item.description}</td>
-                  <td>${item.category}</td>
-                  <td>${item.quantity}</td>
-                  <td class="amount">₹${(item.unit_price || 0).toLocaleString("en-IN")}</td>
-                  <td class="amount">₹${(item.total_price || 0).toLocaleString("en-IN")}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-          
-          <div class="totals">
-            <div class="totals-row">
-              <span>Subtotal</span>
-              <span>₹${(fullQuotation?.subtotal || 0).toLocaleString("en-IN")}</span>
-            </div>
-            ${fullQuotation?.discount_amount > 0 ? `
-            <div class="totals-row">
-              <span>Discount (${fullQuotation?.discount_percent || 0}%)</span>
-              <span>-₹${(fullQuotation?.discount_amount || 0).toLocaleString("en-IN")}</span>
-            </div>
-            ` : ""}
-            <div class="totals-row grand-total">
-              <span>Grand Total</span>
-              <span>₹${(quotation.total_amount || 0).toLocaleString("en-IN")}</span>
-            </div>
-          </div>
-          
-          <div class="terms">
-            <h4>📋 Terms & Conditions</h4>
-            <ul>
-              <li>50% advance payment required to confirm booking</li>
-              <li>Balance payment due before album delivery</li>
-              <li>This quotation is valid for 15 days from the date of issue</li>
-              <li>Prices are subject to change without prior notice</li>
-            </ul>
-          </div>
-          
-          <div class="footer">
-            <p>Thank you for choosing Aura Knot Media!</p>
-            <p>For queries, contact us at: support@auraknotmedia.com | +91 98765 43210</p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Open print dialog with the PDF content
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(pdfContent);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-        }, 500);
-      }
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("Failed to generate PDF. Please try again.");
     }
   };
 

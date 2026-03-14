@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { formatDate } from "@/lib/constants";
@@ -740,7 +741,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               {/* Header */}
               <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start pb-5 border-b-2 border-[#5b1e2d] mb-5">
                 <div>
-                  <img src="/ak-logo-final-v2.png" alt="Aura Knot" className="h-16 w-auto" style={{ height: 64, width: 'auto' }} />
+                  <Image src="/ak-logo-final-v2.png" alt="Aura Knot" width={160} height={64} className="h-16 w-auto" priority />
                   <div className="text-sm mt-2 font-semibold text-[#5b1e2d]">Naveen B T, Founder & Creative Director</div>
                   <div className="text-sm text-gray-500">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
                 </div>

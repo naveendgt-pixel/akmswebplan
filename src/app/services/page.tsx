@@ -26,23 +26,6 @@ interface Quotation {
   } | null;
 }
 
-interface SupabaseQuotation {
-  id: string;
-  quotation_number: string;
-  customer_id: string | null;
-  event_type: string;
-  event_date: string | null;
-  event_city: string | null;
-  event_venue: string | null;
-  total_amount: number;
-  subtotal: number;
-  discount_amount: number;
-  tax_amount: number;
-  status: string;
-  created_at: string;
-  customers: unknown;
-}
-
 const statusColors: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700 border-gray-200",
   Pending: "bg-amber-100 text-amber-700 border-amber-200",

@@ -59,7 +59,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           window.location.replace("/dashboard");
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("Failed to set Supabase session from URL hash:", err);
       } finally {
         // remove tokens from URL for cleanliness
