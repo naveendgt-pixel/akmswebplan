@@ -62,6 +62,7 @@ export const additionalServices = [
   "Drone Videography",
   "Pre-Wedding Shoot",
   "Post-Wedding Shoot",
+  "Pre or Post Wedding Shoot",
   "Outdoor Shoot",
   "LED Wall",
   "Live Streaming",

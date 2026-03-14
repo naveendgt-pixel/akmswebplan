@@ -9,7 +9,10 @@ import {
   albumSizes,
   coverageAreas,
   coverageTypes,
+  eventTypes,
+  packageTypes,
   sessionTypes,
+  formatDate,
 } from "@/lib/constants";
 
 // Photography Service Entry
@@ -45,14 +48,21 @@ interface AdditionalService {
 interface QuotationForm {
   // Customer Info (from URL params)
   customerId: string;
+  customerTitle: string;
   customerName: string;
   customerPhone: string;
+  customerEmail: string;
+  referredBy: string;
+  referredByTitle: string;
   eventType: string;
   eventDate: string;
   eventEndDate: string;
   eventVenue: string;
   eventCity: string;
   packageType: string;
+  session: string;
+  softCopyOptions: string[];
+  softCopyCustom: string;
   
   // Multiple Photography Services
   photoServices: PhotoService[];
@@ -128,14 +138,21 @@ const createAdditionalService = (): AdditionalService => ({
 
 const initialForm: QuotationForm = {
   customerId: "",
+  customerTitle: "",
   customerName: "",
   customerPhone: "",
+  customerEmail: "",
+  referredBy: "",
+  referredByTitle: "",
   eventType: "",
   eventDate: "",
   eventEndDate: "",
   eventVenue: "",
   eventCity: "",
   packageType: "",
+  session: "",
+  softCopyOptions: [],
+  softCopyCustom: "",
   photoServices: [createPhotoService()],
   videoServices: [createVideoService()],
   additionalServices: [],
@@ -168,10 +185,21 @@ const initialForm: QuotationForm = {
   createOrderOnly: false,
 };
 
+const normalizeEventType = (value: string) => {
+  if (!value) {
+    return { eventType: "", manualEventType: "" };
+  }
+  if (eventTypes.includes(value)) {
+    return { eventType: value, manualEventType: "" };
+  }
+  return { eventType: "Others", manualEventType: value };
+};
+
 function QuotationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [form, setForm] = useState<QuotationForm>(initialForm);
+  const [manualEventType, setManualEventType] = useState("");
   const [discountAmountManual, setDiscountAmountManual] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -181,6 +209,7 @@ function QuotationContent() {
   const [creationMode, setCreationMode] = useState<"quotation" | "order" | null>(null);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [showModeChoice, setShowModeChoice] = useState(false);
+  const [declining, setDeclining] = useState(false);
 
   // Load customer data from URL params OR load existing quotation for editing
   useEffect(() => {
@@ -205,9 +234,13 @@ function QuotationContent() {
       }
       
       const customerId = searchParams.get("customerId") || "";
+      const customerTitle = searchParams.get("customerTitle") || "";
       const customerName = searchParams.get("customerName") || "";
       const customerPhone = searchParams.get("customerPhone") || "";
-      const eventType = searchParams.get("eventType") || "";
+      const customerEmail = searchParams.get("customerEmail") || "";
+      const referredBy = searchParams.get("referredBy") || "";
+      const referredByTitle = searchParams.get("referredByTitle") || "";
+      const eventTypeParam = searchParams.get("eventType") || "";
       const eventDate = searchParams.get("eventDate") || "";
       const eventEndDate = searchParams.get("eventEndDate") || "";
       const eventVenue = searchParams.get("eventVenue") || "";
@@ -215,19 +248,28 @@ function QuotationContent() {
       const packageType = searchParams.get("packageType") || "";
       const session = searchParams.get("session") || "";
 
+      const normalizedEventType = normalizeEventType(eventTypeParam);
+      setManualEventType(normalizedEventType.manualEventType);
+
       setForm((prev) => ({
         ...prev,
         customerId,
+        customerTitle,
         customerName,
         customerPhone,
-        eventType,
+        customerEmail,
+        referredBy,
+        referredByTitle,
+        eventType: normalizedEventType.eventType,
         eventDate,
         eventEndDate,
         eventVenue,
         eventCity,
         packageType,
+        session,
         photoServices: prev.photoServices.map((ps) => ({ ...ps, session })),
         videoServices: prev.videoServices.map((vs) => ({ ...vs, session })),
+        additionalServices: prev.additionalServices.map((as) => ({ ...as, session })),
       }));
     }
   }, [searchParams]);
@@ -244,8 +286,12 @@ function QuotationContent() {
           *,
           customers (
             id,
+            customer_title,
             name,
-            phone
+            phone,
+            email,
+            referred_by,
+            referred_by_title
           )
         `)
         .eq("id", quotationId)
@@ -316,17 +362,31 @@ function QuotationContent() {
         }
       });
 
+      const normalizedEventType = normalizeEventType(quotation.event_type || "");
+      const defaultSession =
+        photoServices[0]?.session ||
+        videoServices[0]?.session ||
+        additionalServicesArr[0]?.session ||
+        "";
+
       // Set form with loaded data
       setForm({
         customerId: quotation.customer_id || "",
+        customerTitle: quotation.customers?.customer_title || "",
         customerName: quotation.customers?.name || "",
         customerPhone: quotation.customers?.phone || "",
-        eventType: quotation.event_type || "",
+        customerEmail: quotation.customers?.email || "",
+        referredBy: quotation.customers?.referred_by || "",
+        referredByTitle: quotation.customers?.referred_by_title || "",
+        eventType: normalizedEventType.eventType,
         eventDate: quotation.event_date || "",
         eventEndDate: quotation.event_end_date || "",
         eventVenue: quotation.event_venue || "",
         eventCity: quotation.event_city || "",
         packageType: quotation.package_type || "",
+        session: defaultSession,
+        softCopyOptions: (quotation.soft_copy_options && Array.isArray(quotation.soft_copy_options) ? quotation.soft_copy_options : (quotation.soft_copy_option ? [quotation.soft_copy_option] : [])),
+        softCopyCustom: quotation.soft_copy_custom || "",
         photoServices: photoServices.length > 0 ? photoServices : [createPhotoService()],
         videoServices: videoServices.length > 0 ? videoServices : [createVideoService()],
         additionalServices: additionalServicesArr,
@@ -359,6 +419,8 @@ function QuotationContent() {
         createOrderOnly: false,
       });
 
+      setManualEventType(normalizedEventType.manualEventType);
+
       // Initialize manual discount amount if it differs from calculated
       if (quotation.discount_amount && quotation.discount_percent) {
         const calculated = Math.round((quotation.subtotal * quotation.discount_percent) / 100);
@@ -384,8 +446,12 @@ function QuotationContent() {
           *,
           customers (
             id,
+            customer_title,
             name,
-            phone
+            phone,
+            email,
+            referred_by,
+            referred_by_title
           )
         `)
         .eq("id", orderId)
@@ -454,17 +520,31 @@ function QuotationContent() {
         }
       });
 
+      const normalizedEventType = normalizeEventType(order.event_type || "");
+      const defaultSession =
+        photoServices[0]?.session ||
+        videoServices[0]?.session ||
+        additionalServicesArr[0]?.session ||
+        "";
+
       // Set form with loaded order data
       setForm({
         customerId: order.customer_id || "",
+        customerTitle: order.customers?.customer_title || "",
         customerName: order.customers?.name || "",
         customerPhone: order.customers?.phone || "",
-        eventType: order.event_type || "",
+        customerEmail: order.customers?.email || "",
+        referredBy: order.customers?.referred_by || "",
+        referredByTitle: order.customers?.referred_by_title || "",
+        eventType: normalizedEventType.eventType,
         eventDate: order.event_date || "",
         eventEndDate: order.event_end_date || "",
         eventVenue: order.event_venue || "",
         eventCity: order.event_city || "",
         packageType: order.package_type || "",
+        session: defaultSession,
+        softCopyOptions: (order.soft_copy_options && Array.isArray(order.soft_copy_options) ? order.soft_copy_options : (order.soft_copy_option ? [order.soft_copy_option] : [])),
+        softCopyCustom: order.soft_copy_custom || "",
         photoServices: photoServices.length > 0 ? photoServices : [createPhotoService()],
         videoServices: videoServices.length > 0 ? videoServices : [createVideoService()],
         additionalServices: additionalServicesArr,
@@ -496,6 +576,8 @@ function QuotationContent() {
         createdAt: order.created_at ? order.created_at.split('T')[0] : "",
         createOrderOnly: true,
       });
+
+      setManualEventType(normalizedEventType.manualEventType);
 
       // Initialize manual discount amount if it differs from calculated
       if (order.discount_amount && order.discount_percent) {
@@ -529,11 +611,21 @@ function QuotationContent() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleSessionChange = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      session: value,
+      photoServices: prev.photoServices.map((ps) => ({ ...ps, session: value })),
+      videoServices: prev.videoServices.map((vs) => ({ ...vs, session: value })),
+      additionalServices: prev.additionalServices.map((as) => ({ ...as, session: value })),
+    }));
+  };
+
   // Photography Service handlers
   const addPhotoService = () => {
     setForm((prev) => ({
       ...prev,
-      photoServices: [...prev.photoServices, createPhotoService()],
+      photoServices: [...prev.photoServices, { ...createPhotoService(), session: prev.session }],
     }));
   };
 
@@ -557,7 +649,7 @@ function QuotationContent() {
   const addVideoService = () => {
     setForm((prev) => ({
       ...prev,
-      videoServices: [...prev.videoServices, createVideoService()],
+      videoServices: [...prev.videoServices, { ...createVideoService(), session: prev.session }],
     }));
   };
 
@@ -581,7 +673,7 @@ function QuotationContent() {
   const addAdditionalService = () => {
     setForm((prev) => ({
       ...prev,
-      additionalServices: [...prev.additionalServices, createAdditionalService()],
+      additionalServices: [...prev.additionalServices, { ...createAdditionalService(), session: prev.session }],
     }));
   };
 
@@ -650,35 +742,69 @@ function QuotationContent() {
 
   // Handle form submission (Create or Update)
   const handleSubmit = async () => {
-    if (!form.eventType) {
-      setMessage({ type: "error", text: "Event type is required. Please go back and fill customer details." });
-      return;
-    }
-
     setSaving(true);
     setMessage(null);
 
     try {
+      if (!form.customerName.trim()) {
+        setMessage({ type: "error", text: "Customer name is required." });
+        setSaving(false);
+        return;
+      }
+      if (!form.customerPhone.trim()) {
+        setMessage({ type: "error", text: "Mobile number is required." });
+        setSaving(false);
+        return;
+      }
+
       if (!supabase) {
         setMessage({ type: "success", text: "Quotation preview created (Supabase not configured)" });
         setSaving(false);
         return;
       }
 
+      const eventTypeValue = form.eventType === "Others" ? manualEventType : form.eventType;
       const isValidUUID = form.customerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.customerId);
+      let resolvedCustomerId = isValidUUID ? form.customerId : null;
+
+      if (!resolvedCustomerId) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({
+            customer_title: form.customerTitle || null,
+            name: form.customerName || null,
+            phone: form.customerPhone || null,
+            email: form.customerEmail || null,
+            referred_by: form.referredBy || null,
+            referred_by_title: form.referredByTitle || null,
+            address: form.eventVenue || null,
+            city: form.eventCity || null,
+            source: "Walk-in",
+          })
+          .select()
+          .single();
+
+        if (customerError) {
+          throw customerError;
+        }
+
+        resolvedCustomerId = newCustomer.id;
+      }
 
       // Get primary photo/video service for snapshot (first one with rate > 0)
       const primaryPhoto = form.photoServices.find((ps) => ps.rate > 0) || form.photoServices[0];
       const primaryVideo = form.videoServices.find((vs) => vs.rate > 0) || form.videoServices[0];
 
       const quotationData = {
-        customer_id: isValidUUID ? form.customerId : null,
-        event_type: form.eventType,
+        customer_id: resolvedCustomerId,
+        event_type: eventTypeValue || null,
         event_date: form.eventDate || null,
         event_end_date: form.eventEndDate || null,
         event_venue: form.eventVenue || null,
         event_city: form.eventCity || null,
         package_type: form.packageType || null,
+        soft_copy_options: form.softCopyOptions.length > 0 ? form.softCopyOptions : null,
+        soft_copy_custom: form.softCopyOptions.includes("custom") ? (form.softCopyCustom || null) : null,
         // Primary Photography Details (Snapshot)
         photo_type: primaryPhoto?.type || null,
         photo_area: primaryPhoto?.area || null,
@@ -726,6 +852,8 @@ function QuotationContent() {
       };
 
       let quotationId: string;
+      let createdQuotationNumber: string | null = null;
+      let createdValidUntil: string | null = null;
 
       // If creating order only, handle differently
       if (form.createOrderOnly) {
@@ -740,14 +868,17 @@ function QuotationContent() {
           .insert({
             order_number: orderNumber,
             quotation_id: isEditMode ? editQuotationId : null,
-            customer_id: isValidUUID ? form.customerId : null,
+            customer_id: resolvedCustomerId,
             customer_name: form.customerName,
             customer_phone: form.customerPhone,
-            event_type: form.eventType,
+            customer_email: form.customerEmail || null,
+            event_type: eventTypeValue || null,
             event_date: form.eventDate || null,
             event_end_date: form.eventEndDate || null,
             event_venue: form.eventVenue || null,
             event_city: form.eventCity || null,
+            soft_copy_options: form.softCopyOptions.length > 0 ? form.softCopyOptions : null,
+            soft_copy_custom: form.softCopyOptions.includes("custom") ? (form.softCopyCustom || null) : null,
             total_amount: totalAmount,
             final_budget: totalAmount,
             payment_status: "Pending",
@@ -903,7 +1034,7 @@ function QuotationContent() {
             ...quotationData,
             quotation_number: quotationNumber,
             status: "Draft",
-            valid_until: validUntil.toISOString().split("T")[0],
+            valid_until: createdValidUntil,
           })
           .select()
           .single();
@@ -1018,6 +1149,18 @@ function QuotationContent() {
         await supabase.from("quotation_items").insert(items);
       }
 
+      if (!isEditMode && createdQuotationNumber) {
+        await maybeSendAutomationMessage("Quotation Created", {
+          customerName: form.customerName,
+          customerPhone: form.customerPhone,
+          quotationNumber: createdQuotationNumber,
+          totalAmount: totalAmount,
+          eventType: eventTypeValue || "",
+          eventDate: form.eventDate ? formatDate(form.eventDate) : "",
+          validUntil: createdValidUntil ? formatDate(createdValidUntil) : "",
+        });
+      }
+
       const successMsg = isEditMode 
         ? `Quotation ${editQuotationNumber} updated successfully! Redirecting...`
         : `Quotation created successfully! Redirecting to quotations...`;
@@ -1034,6 +1177,30 @@ function QuotationContent() {
       setMessage({ type: "error", text: errorMsg });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeclineQuotation = async () => {
+    if (!supabase || !editQuotationId) return;
+    const reason = typeof window !== "undefined" ? window.prompt("Reason for decline (optional):") : "";
+    setDeclining(true);
+    try {
+      const { error } = await supabase
+        .from("quotations")
+        .update({
+          status: "Declined",
+          declined_at: new Date().toISOString(),
+          decline_reason: reason || null,
+        })
+        .eq("id", editQuotationId);
+
+      if (error) throw error;
+      setMessage({ type: "success", text: "Quotation declined successfully." });
+    } catch (error: unknown) {
+      const err = error as { message?: string; details?: string };
+      setMessage({ type: "error", text: err.message || err.details || "Failed to decline quotation." });
+    } finally {
+      setDeclining(false);
     }
   };
 
@@ -1118,88 +1285,161 @@ function QuotationContent() {
       {/* Form Content - Show unless in mode choice selection */}
       {(!showModeChoice || creationMode) && (
         <>
-      {/* Customer Info Summary (Read-only) */}
-      <SectionCard title="Customer & Event Details" description="From customer registration">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Customer Name</label>
-            <input
-              type="text"
-              value={form.customerName}
-              onChange={(e) => handleChange("customerName", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
-            />
+      {/* Customer & Event Details */}
+      <SectionCard title="Customer & Event Details" description="All fields are optional">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Customer Name <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              <select
+                className={`${selectClass} w-24`}
+                value={form.customerTitle}
+                onChange={(e) => handleChange("customerTitle", e.target.value)}
+              >
+                <option value="">Title</option>
+                <option value="Mr">Mr</option>
+                <option value="Mrs">Mrs</option>
+                <option value="Ms">Ms</option>
+              </select>
+              <input
+                placeholder="Enter full name"
+                className={`${inputClass} flex-1`}
+                value={form.customerName}
+                onChange={(e) => handleChange("customerName", e.target.value)}
+              />
+            </div>
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Phone</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Mobile Number <span className="text-red-500">*</span></label>
             <input
-              type="tel"
+              placeholder="+91 00000 00000"
+              className={inputClass}
               value={form.customerPhone}
               onChange={(e) => handleChange("customerPhone", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Event Type</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Email</label>
             <input
-              type="text"
-              value={form.eventType}
-              onChange={(e) => handleChange("eventType", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
+              type="email"
+              placeholder="email@example.com"
+              className={inputClass}
+              value={form.customerEmail}
+              onChange={(e) => handleChange("customerEmail", e.target.value)}
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Event Start</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Referred By</label>
+            <div className="flex gap-2">
+              <select
+                className={`${selectClass} w-24`}
+                value={form.referredByTitle}
+                onChange={(e) => handleChange("referredByTitle", e.target.value)}
+              >
+                <option value="">Title</option>
+                <option value="Mr">Mr</option>
+                <option value="Mrs">Mrs</option>
+                <option value="Ms">Ms</option>
+              </select>
+              <input
+                placeholder="Reference name"
+                className={`${inputClass} flex-1`}
+                value={form.referredBy}
+                onChange={(e) => handleChange("referredBy", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Event Type</label>
+            {form.eventType === "Others" ? (
+              <input
+                placeholder="Enter event type"
+                className={inputClass}
+                value={manualEventType}
+                onChange={(e) => setManualEventType(e.target.value)}
+              />
+            ) : (
+              <select
+                className={selectClass}
+                value={form.eventType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  handleChange("eventType", next);
+                  if (next !== "Others") {
+                    setManualEventType("");
+                  }
+                }}
+              >
+                <option value="">Select event type</option>
+                {eventTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Event Start Date</label>
             <input
               type="date"
+              className={inputClass}
               value={form.eventDate}
               onChange={(e) => handleChange("eventDate", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Event End</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Event End Date</label>
             <input
               type="date"
+              className={inputClass}
               value={form.eventEndDate}
               onChange={(e) => handleChange("eventEndDate", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3 sm:col-span-2">
-            <label className="text-xs text-[var(--muted-foreground)] block">Venue</label>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <label className="text-sm font-medium text-[var(--foreground)]">Event Location</label>
             <input
-              type="text"
+              placeholder="Venue name and address"
+              className={inputClass}
               value={form.eventVenue}
               onChange={(e) => handleChange("eventVenue", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">City</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Event City</label>
             <input
-              type="text"
+              placeholder="City name"
+              className={inputClass}
               value={form.eventCity}
               onChange={(e) => handleChange("eventCity", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
             />
           </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/50 p-3">
-            <label className="text-xs text-[var(--muted-foreground)] block">Package</label>
-            <input
-              type="text"
+          <div className="flex flex-col gap-1.5 md:col-span-1">
+            <label className="text-sm font-medium text-[var(--foreground)]">Session</label>
+            <select
+              className={selectClass}
+              value={form.session}
+              onChange={(e) => handleSessionChange(e.target.value)}
+            >
+              <option value="">Select session</option>
+              {sessionTypes.map((session) => (
+                <option key={session} value={session}>{session}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">Package Type</label>
+            <select
+              className={selectClass}
               value={form.packageType}
               onChange={(e) => handleChange("packageType", e.target.value)}
-              className="w-full bg-transparent font-medium text-[var(--foreground)] mt-1 outline-none"
-            />
+            >
+              <option value="">Select package</option>
+              {packageTypes.map((pkg) => (
+                <option key={pkg} value={pkg}>{pkg}</option>
+              ))}
+            </select>
           </div>
         </div>
-        {!form.customerName && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-            <span>⚠️</span>
-            <span>No customer data. <a href="/customers/new" className="font-medium underline">Create a customer first</a></span>
-          </div>
-        )}
       </SectionCard>
 
       {/* Quotation Created Date */}
@@ -1588,19 +1828,19 @@ function QuotationContent() {
             {/* Mini Books */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Mini Books</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.miniBooks || ""}
                   onChange={(e) => handleChange("miniBooks", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("miniBooksComp", !form.miniBooksComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.miniBooksComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1615,19 +1855,19 @@ function QuotationContent() {
             {/* Table/Wall Calendar */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Table/Wall Calendar</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.calendars || ""}
                   onChange={(e) => handleChange("calendars", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("calendarsComp", !form.calendarsComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.calendarsComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1642,19 +1882,19 @@ function QuotationContent() {
             {/* Family/Portrait Frames */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Family/Portrait Frames</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.frames || ""}
                   onChange={(e) => handleChange("frames", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("framesComp", !form.framesComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.framesComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1669,19 +1909,19 @@ function QuotationContent() {
             {/* Cinematic Teaser */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Cinematic Teaser</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.cinematicTeaser || ""}
                   onChange={(e) => handleChange("cinematicTeaser", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("cinematicTeaserComp", !form.cinematicTeaserComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.cinematicTeaserComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1696,19 +1936,19 @@ function QuotationContent() {
             {/* Traditional Highlight Video */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Traditional Highlight Video</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.traditionalHighlightVideo || ""}
                   onChange={(e) => handleChange("traditionalHighlightVideo", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("traditionalHighlightVideoComp", !form.traditionalHighlightVideoComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.traditionalHighlightVideoComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1723,19 +1963,19 @@ function QuotationContent() {
             {/* Cinematic Candid Video */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Cinematic Candid Video</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.cinematicCandidVideo || ""}
                   onChange={(e) => handleChange("cinematicCandidVideo", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("cinematicCandidVideoComp", !form.cinematicCandidVideoComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.cinematicCandidVideoComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1750,19 +1990,19 @@ function QuotationContent() {
             {/* Save the Date */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">Save the Date</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.saveTheDate || ""}
                   onChange={(e) => handleChange("saveTheDate", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("savetheDateComp", !form.savetheDateComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.savetheDateComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1777,19 +2017,19 @@ function QuotationContent() {
             {/* E-Invitation */}
             <div className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
               <label className="text-sm font-semibold text-[var(--foreground)]">E-Invitation</label>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input 
                   type="number" 
                   min="0"
                   placeholder="Qty"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.eInvitation || ""}
                   onChange={(e) => handleChange("eInvitation", parseInt(e.target.value) || 0)}
                 />
                 <button
                   type="button"
                   onClick={() => handleChange("eInvitationComp", !form.eInvitationComp)}
-                  className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                     form.eInvitationComp 
                       ? "bg-green-100 text-green-700 border-green-300" 
                       : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1812,19 +2052,19 @@ function QuotationContent() {
                   value={form.otherDeliverable || ""}
                   onChange={(e) => handleChange("otherDeliverable", e.target.value)}
                 />
-                <div className="flex gap-2 items-center">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input 
                     type="number" 
                     min="0"
                     placeholder="Qty"
-                    className={inputClass}
+                    className={`${inputClass} w-full sm:w-24`}
                     value={form.otherDeliverableQty || ""}
                     onChange={(e) => handleChange("otherDeliverableQty", parseInt(e.target.value) || 0)}
                   />
                   <button
                     type="button"
                     onClick={() => handleChange("otherDeliverableComp", !form.otherDeliverableComp)}
-                    className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                    className={`w-full sm:flex-1 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
                       form.otherDeliverableComp 
                         ? "bg-green-100 text-green-700 border-green-300" 
                         : "bg-gray-100 text-gray-700 border-gray-300"
@@ -1840,6 +2080,47 @@ function QuotationContent() {
         </div>
       </SectionCard>
 
+      {/* Soft Copy */}
+      <SectionCard title="💾 Soft Copy" description="Choose soft copy delivery method">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { value: "pendrive_traditional", label: "Fully Edited Traditional Video in Pendrive" },
+            { value: "photos_pendrive_or_link", label: "All Photos by Pendrive or Downloadable Link" },
+            { value: "softcopy_only", label: "Softcopy Only" },
+            { value: "custom", label: "Other (Manual Entry)" },
+          ].map((opt) => (
+            <label key={opt.value} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
+              <input
+                type="checkbox"
+                name="soft_copy_option"
+                value={opt.value}
+                checked={form.softCopyOptions.includes(opt.value)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  const next = checked
+                    ? [...form.softCopyOptions, opt.value]
+                    : form.softCopyOptions.filter((v) => v !== opt.value);
+                  handleChange("softCopyOptions", next);
+                }}
+                className="mt-1 h-4 w-4 text-[var(--primary)]"
+              />
+              <span className="text-sm text-[var(--foreground)]">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+        {form.softCopyOptions.includes("custom") && (
+          <div className="mt-4">
+            <label className="text-sm font-medium text-[var(--foreground)]">Custom Soft Copy</label>
+            <input
+              placeholder="Type soft copy details"
+              className={inputClass}
+              value={form.softCopyCustom}
+              onChange={(e) => handleChange("softCopyCustom", e.target.value)}
+            />
+          </div>
+        )}
+      </SectionCard>
+
       {/* Pricing & Notes */}
       <SectionCard title="💰 Pricing & Notes" description="Discount and additional notes">
         <div className="grid gap-5 md:grid-cols-2">
@@ -1852,7 +2133,7 @@ function QuotationContent() {
                   min="0"
                   max="100"
                   step="0.01"
-                  className={inputClass}
+                  className={`${inputClass} w-full sm:w-24`}
                   value={form.discountPercent || ""}
                   onChange={(e) => {
                     handleChange("discountPercent", parseFloat(e.target.value) || 0);
@@ -1892,52 +2173,36 @@ function QuotationContent() {
       </SectionCard>
 
       {/* Total & Actions */}
-      <div className="sticky bottom-0 z-30 -mx-6 bg-[var(--background)]/80 px-6 py-4 backdrop-blur-xl">
-        <div className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-2">
-            {/* Service Breakdown */}
-            <div className="flex flex-wrap gap-4 text-sm">
+      <div className="sticky bottom-0 z-30 -mx-6 bg-[var(--background)]/80 px-6 py-2 backdrop-blur-xl">
+        <div className="flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2 shadow-md sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
               {photographyTotal > 0 && (
-                <div className="flex items-center gap-1">
-                  <span className="text-[var(--muted-foreground)]">📸</span>
-                  <span className="text-blue-600 font-medium">₹{photographyTotal.toLocaleString()}</span>
-                </div>
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-blue-700">📸 ₹{photographyTotal.toLocaleString()}</span>
               )}
               {videographyTotal > 0 && (
-                <div className="flex items-center gap-1">
-                  <span className="text-[var(--muted-foreground)]">🎬</span>
-                  <span className="text-purple-600 font-medium">₹{videographyTotal.toLocaleString()}</span>
-                </div>
+                <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-1 text-purple-700">🎬 ₹{videographyTotal.toLocaleString()}</span>
               )}
               {additionalServicesTotal > 0 && (
-                <div className="flex items-center gap-1">
-                  <span className="text-[var(--muted-foreground)]">✨</span>
-                  <span className="text-amber-600 font-medium">₹{additionalServicesTotal.toLocaleString()}</span>
-                </div>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">✨ ₹{additionalServicesTotal.toLocaleString()}</span>
               )}
             </div>
-            
-            {/* Subtotal & Discount */}
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-sm text-[var(--muted-foreground)]">Subtotal</p>
-                <p className="text-lg font-semibold text-[var(--foreground)]">₹{subtotal.toLocaleString()}</p>
-              </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-[var(--muted-foreground)]">Subtotal</span>
+              <span className="font-semibold text-[var(--foreground)]">₹{subtotal.toLocaleString()}</span>
               {form.discountPercent > 0 && (
-                <div>
-                  <p className="text-sm text-[var(--muted-foreground)]">Discount ({form.discountPercent}%)</p>
-                  <p className="text-lg font-semibold text-red-500">-₹{discountAmount.toLocaleString()}</p>
-                </div>
+                <>
+                  <span className="text-[var(--muted-foreground)]">Discount</span>
+                  <span className="font-semibold text-red-500">-₹{discountAmount.toLocaleString()}</span>
+                </>
               )}
             </div>
-            
-            {/* Grand Total */}
-            <div className="border-t border-[var(--border)] pt-2">
-              <p className="text-sm text-[var(--muted-foreground)]">Total Amount (INR)</p>
-              <p className="text-3xl font-bold text-[var(--foreground)]">₹{totalAmount.toLocaleString()}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-[var(--muted-foreground)]">Total</span>
+              <span className="text-xl font-bold text-[var(--foreground)]">₹{totalAmount.toLocaleString()}</span>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={handleSubmit}
               disabled={saving}
@@ -1955,11 +2220,21 @@ function QuotationContent() {
                 isEditMode && editOrderId ? "Update Order" : isEditMode ? "Update Quotation" : creationMode === "order" ? "Create Order" : "Create Quotation"
               )}
             </button>
+            {isEditMode && !editOrderId && (
+              <button
+                type="button"
+                onClick={handleDeclineQuotation}
+                disabled={declining}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-6 text-sm font-semibold text-red-700 transition-all duration-200 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {declining ? "Declining..." : "Decline Quotation"}
+              </button>
+            )}
             <button 
-              onClick={() => router.push(isEditMode ? "/quotations" : "/customers/new")}
+              onClick={() => router.push("/quotations")}
               className="inline-flex h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-6 text-sm font-semibold text-[var(--muted-foreground)] transition-all duration-200 hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
             >
-              {isEditMode ? "Cancel" : "Back"}
+              {isEditMode ? "Cancel" : "Back to Quotations"}
             </button>
           </div>
         </div>

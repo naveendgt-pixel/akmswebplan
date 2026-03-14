@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { formatDate } from "@/lib/constants";
@@ -25,6 +24,8 @@ interface QuotationData {
   event_venue: string | null;
   event_city: string | null;
   package_type: string | null;
+  soft_copy_options: string[] | null;
+  soft_copy_custom: string | null;
   subtotal: number;
   discount_percent: number;
   discount_amount: number;
@@ -58,9 +59,12 @@ interface QuotationData {
   created_at: string;
   customers: {
     id: string;
+    customer_title: string | null;
     name: string;
     phone: string;
     email: string | null;
+    referred_by: string | null;
+    referred_by_title: string | null;
     address: string | null;
   } | null;
 }
@@ -87,9 +91,12 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
             *,
             customers (
               id,
+              customer_title,
               name,
               phone,
               email,
+              referred_by,
+              referred_by_title,
               address
             )
           `)
@@ -125,6 +132,61 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       currency: "INR",
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatPerson = (title?: string | null, name?: string | null) => {
+    const t = (title || "").trim();
+    const n = (name || "").trim();
+    if (!t) return n || "-";
+    if (!n) return t;
+    return `${t} ${n}`;
+  };
+
+  const softCopyItems = (options?: string[] | null, custom?: string | null) => {
+    const labels: string[] = [];
+    (options || []).forEach((option) => {
+      if (option === "pendrive_traditional") labels.push("Fully Edited Traditional Video in Pendrive");
+      else if (option === "photos_pendrive_or_link") labels.push("All Photos by Pendrive or Downloadable Link");
+      else if (option === "softcopy_only") labels.push("Softcopy Only");
+      else if (option === "custom" && custom) labels.push(custom);
+    });
+    return labels;
+  };
+
+  const formatDescription = (desc?: string) => {
+    if (!desc) return "";
+    let d = desc.trim();
+
+    d = d
+      .replace(/\s*\((Complimentary|Complementary)(?:[^)]*)\)/gi, "")
+      .replace(/\bComplimentary\b/gi, "")
+      .replace(/\bComplementary\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    const m = d.match(/^(Photography|Videography)\s*\d*\s*-\s*(.+)$/i);
+    if (m) {
+      const parts = m[2].split(" - ").map((p) => p.trim()).filter(Boolean);
+      const firstPart = parts[0] || "";
+      const areaPart = parts[1] || "";
+      const sessionMatch = firstPart.match(/(.+?)\s*\((.+)\)/);
+      if (sessionMatch) {
+        const type = sessionMatch[1].trim();
+        const session = sessionMatch[2].trim();
+        const base = `${type} ${m[1]} / (${session})`;
+        if (/traditional/i.test(type) && areaPart) {
+          return `${base} - ${areaPart}`;
+        }
+        return base;
+      }
+      const base = `${firstPart} ${m[1]}`.trim();
+      if (/traditional/i.test(firstPart) && areaPart) {
+        return `${base} - ${areaPart}`;
+      }
+      return base;
+    }
+    d = d.replace(/\s*-\s*all\s*areas?/gi, "").trim();
+    return d;
   };
 
   // Normalize and group items by canonical category names to ensure consistent ordering
@@ -163,63 +225,41 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
   // Desired order for rendering categories
   const orderedCategories = ["Photography", "Album", "Videography", "Additional Services", "Print & Gifts", "Other"];
 
+  const categoryLabel = (category: string) => {
+    if (category === "Print & Gifts") return "Print & Gifts Services - Complimentary";
+    return `${category} Services`;
+  };
+
   // Handle Print/PDF - try programmatic PDF via html2pdf, fallback to print window
   const handlePrint = async () => {
     if (!quotation) return;
 
     // Generate filename with quotation number and customer name
-    const customerName = quotation.customers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Customer';
+    const customerName = formatPerson(quotation.customers?.customer_title, quotation.customers?.name)
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .replace(/\s+/g, '_') || 'Customer';
     const pdfFilename = `${quotation.quotation_number}_${customerName}.pdf`;
 
     // Compute safe start/end date strings for PDF content
     const startDateStr = quotation.event_date ? formatDate(quotation.event_date) : '';
     const endDateStr = quotation.event_end_date ? formatDate(quotation.event_end_date) : '';
 
-    // Try programmatic pdf generation using html2pdf.js
-      try {
-      const html2pdfModule: unknown = await import('html2pdf.js');
-      let html2pdfFunc: unknown;
-      if (html2pdfModule && typeof html2pdfModule === 'object' && 'default' in (html2pdfModule as Record<string, unknown>)) {
-        html2pdfFunc = (html2pdfModule as Record<string, unknown>).default;
-      } else {
-        html2pdfFunc = html2pdfModule;
-      }
-      const element = document.getElementById('pdf-root');
-      if (element && typeof html2pdfFunc === 'function') {
-        const opt: Record<string, unknown> = {
-          margin: [10, 10, 10, 10],
-          filename: pdfFilename,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        };
-
-        // Create a clone to avoid modifying original
-        const clone = element.cloneNode(true) as HTMLElement;
-        const builder = (html2pdfFunc as unknown as () => unknown)();
-        const builderObj = builder as unknown as { set: (o: Record<string, unknown>) => { from: (el: HTMLElement) => { save: () => void } } };
-        builderObj.set(opt).from(clone).save();
-        return;
-      }
-    } catch (err) {
-      console.debug('html2pdf error, attempting alternative method', err);
-    }
-
-    // Fallback: Show alert with filename hint
-    alert(`Please save the file as: ${pdfFilename}\n\nThe browser will open print dialog. Select "Save as PDF" to download.`);
+    // Use browser print dialog (users can choose "Save as PDF").
+    // Previously we attempted programmatic pdf generation via html2pdf, which
+    // produced inconsistent results. Opening the print dialog yields more
+    // reliable rendering and allows users to control print settings.
 
     const itemsHtml = orderedCategories.map((category) => {
       const catItems = groupedItems[category] || [];
       if (catItems.length === 0) return '';
       return `
       <tr class="category-row">
-        <td colspan="${showPrices ? 4 : 3}">${categoryIcons[category] || "📌"} ${category} Services</td>
+        <td colspan="${showPrices ? 3 : 2}">${categoryIcons[category] || "📌"} ${categoryLabel(category)}</td>
       </tr>
       ${catItems.map(item => `
         <tr>
-          <td>${item.description}</td>
+          <td>${formatDescription(item.description)}</td>
           <td class="qty">${item.quantity}</td>
-          <td>-</td>
           ${showPrices ? `<td class="amount">${formatCurrency(item.total_price)}</td>` : ''}
         </tr>
       `).join('')}
@@ -242,7 +282,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           </div>
           ${quotation.discount_amount > 0 ? `
             <div class="summary-row discount">
-              <span>Discount (${quotation.discount_percent}%)</span>
+              <span>${quotation.discount_percent > 0 ? `Discount (${quotation.discount_percent}%)` : "Discount"}</span>
               <span>- ${formatCurrency(quotation.discount_amount)}</span>
             </div>
           ` : ''}
@@ -262,7 +302,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           </div>
           ${quotation.discount_amount > 0 ? `
             <div class="summary-row discount">
-              <span>Discount (${quotation.discount_percent}%)</span>
+              <span>${quotation.discount_percent > 0 ? `Discount (${quotation.discount_percent}%)` : "Discount"}</span>
               <span>- ${formatCurrency(quotation.discount_amount)}</span>
             </div>
           ` : ''}
@@ -417,6 +457,11 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           }
           .notes-title { font-size: 12px; font-weight: 600; color: #92400e !important; margin-bottom: 8px; }
           .notes-content { font-size: 13px; color: #78350f !important; }
+          /* explicit page-break helper and two-page sheets */
+          .page-break { page-break-after: always; break-after: page; }
+          .sheet { width: 210mm; box-sizing: border-box; padding: 10mm; page-break-after: always; break-after: page; }
+          .sheet:last-child { page-break-after: auto; break-after: auto; }
+          @media print { .sheet { page-break-inside: avoid; } }
           @media print {
             body { padding: 0; }
             .container { max-width: 100%; }
@@ -425,13 +470,10 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       </head>
       <body>
         <div class="container">
-          <div class="header">
+          <div class="sheet">
+            <div class="header">
             <div>
-              <svg class="logo-img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80" role="img" aria-label="Aura Knot">
-                <rect width="100" height="100" rx="12" ry="12" fill="#5b1e2d" />
-                <text x="50" y="58" font-family="Segoe UI, Tahoma, Geneva, Verdana, sans-serif" font-size="36" fill="#fff" font-weight="700" text-anchor="middle">AK</text>
-              </svg>
-              <div class="logo-contact" style="font-weight: 600; color: #5b1e2d;">Naveen B T, Founder & Creative Director</div>
+                 <img src="${window.location.origin}/ak-logo-final-v2.png" alt="Aura Knot" class="logo-img">
               <div class="logo-contact">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
             </div>
             <div class="doc-info">
@@ -447,8 +489,9 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
             <div class="info-grid">
               <div class="info-box">
                 <div class="info-label">Customer Name</div>
-                <div class="info-value">${quotation.customers?.name || "-"}</div>
+                <div class="info-value">${formatPerson(quotation.customers?.customer_title, quotation.customers?.name)}</div>
                 <div class="info-sub">${quotation.customers?.phone || ""} ${quotation.customers?.email ? `• ${quotation.customers.email}` : ""}</div>
+                ${quotation.customers?.referred_by ? `<div class="info-sub">Referred By: ${formatPerson(quotation.customers?.referred_by_title, quotation.customers?.referred_by)}</div>` : ""}
               </div>
               <div class="info-box">
                 <div class="info-label">Event Type</div>
@@ -475,12 +518,24 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                   <tr>
                     <th>Description</th>
                     <th class="qty">Qty</th>
-                    <th>Details</th>
                     ${showPrices ? '<th class="amount">Amount</th>' : ''}
                   </tr>
                 </thead>
                 <tbody>${itemsHtml}</tbody>
               </table>
+            </div>
+          ` : ''}
+
+          ${softCopyItems(quotation.soft_copy_options, quotation.soft_copy_custom).length ? `
+            <div class="section">
+              <div class="section-title">Soft Copy</div>
+              <div class="info-box">
+                <ul style="margin: 0; padding-left: 18px;">
+                  ${softCopyItems(quotation.soft_copy_options, quotation.soft_copy_custom)
+                    .map(item => `<li>${item}</li>`)
+                    .join('')}
+                </ul>
+              </div>
             </div>
           ` : ''}
 
@@ -495,15 +550,18 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
           </div>
 
           ${summaryHtml}
+            </div> <!-- end sheet 1 content -->
+          </div>
 
-          ${quotation.notes ? `
+          <div class="sheet"> 
+            ${quotation.notes ? `
             <div class="notes-box">
               <div class="notes-title">Special Notes</div>
               <div class="notes-content">${quotation.notes}</div>
             </div>
           ` : ''}
 
-          <div class="terms">
+            <div class="terms">
             <div class="terms-title">Terms & Conditions</div>
             <ul class="terms-list">
               <li>1. Delivery: Soft copies delivered within 7 days of the event unless agreed otherwise.</li>
@@ -537,7 +595,20 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               <div class="signature-line"></div>
               <div class="signature-label">Authorized Signature</div>
             </div>
-          </div>
+            </div>
+
+            <div class="footer">
+              <div class="contact-info">
+                <p><strong>Aura Knot Photography</strong></p>
+                <p>📍 Perundurai, Erode</p>
+                <p>📞 +91 8610 100 885 | ✉️ auraknot.photo@gmail.com</p>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Authorized Signature</div>
+              </div>
+            </div>
+          </div> <!-- end sheet 2 -->
         </div>
       </body>
       </html>
@@ -669,7 +740,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               {/* Header */}
               <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start pb-5 border-b-2 border-[#5b1e2d] mb-5">
                 <div>
-                  <Image src="/ak-logo-final.png" alt="Aura Knot" width={64} height={64} className="h-16 w-auto" />
+                  <img src="/ak-logo-final-v2.png" alt="Aura Knot" className="h-16 w-auto" style={{ height: 64, width: 'auto' }} />
                   <div className="text-sm mt-2 font-semibold text-[#5b1e2d]">Naveen B T, Founder & Creative Director</div>
                   <div className="text-sm text-gray-500">+91 8610 100 885 | auraknot.photo@gmail.com | Perundurai, Erode</div>
                 </div>
@@ -696,10 +767,17 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-[#faf6f2] p-3 rounded border-l-[3px] border-l-[#5b1e2d]">
                     <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Customer Name</div>
-                    <div className="text-sm font-semibold text-gray-900">{quotation.customers?.name || "-"}</div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatPerson(quotation.customers?.customer_title, quotation.customers?.name)}
+                    </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {quotation.customers?.phone} {quotation.customers?.email && `• ${quotation.customers.email}`}
                     </div>
+                    {quotation.customers?.referred_by && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Referred By: {formatPerson(quotation.customers?.referred_by_title, quotation.customers?.referred_by)}
+                      </div>
+                    )}
                   </div>
                   <div className="bg-[#faf6f2] p-3 rounded border-l-[3px] border-l-[#5b1e2d]">
                     <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Event Type</div>
@@ -732,7 +810,6 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                       <tr className="bg-[#5b1e2d] text-white">
                         <th className="px-3 py-2 text-left text-xs font-semibold uppercase rounded-tl">Description</th>
                         <th className="px-3 py-2 text-center text-xs font-semibold uppercase">Qty</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold uppercase">Details</th>
                         {showPrices && <th className="px-3 py-2 text-right text-xs font-semibold uppercase rounded-tr">Amount</th>}
                       </tr>
                     </thead>
@@ -743,15 +820,14 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                         return (
                           <React.Fragment key={`cat-${category}`}>
                             <tr className="bg-[#e6c9a9]">
-                              <td colSpan={showPrices ? 4 : 3} className="px-3 py-2 font-bold text-[#5b1e2d] text-xs uppercase">
-                                {categoryIcons[category] || "📌"} {category} Services
+                              <td colSpan={showPrices ? 3 : 2} className="px-3 py-2 font-bold text-[#5b1e2d] text-xs uppercase">
+                                {categoryIcons[category] || "📌"} {categoryLabel(category)}
                               </td>
                             </tr>
                             {catItems.map((item) => (
                               <tr key={item.id} className="even:bg-[#faf6f2] odd:bg-white">
-                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">{item.description}</td>
+                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">{formatDescription(item.description)}</td>
                                 <td className="px-3 py-2 border-b border-[#e6c9a9] text-center text-gray-900">{item.quantity}</td>
-                                <td className="px-3 py-2 border-b border-[#e6c9a9] text-gray-900">-</td>
                                 {showPrices && <td className="px-3 py-2 border-b border-[#e6c9a9] text-right text-gray-900">{formatCurrency(item.total_price)}</td>}
                               </tr>
                             ))}
@@ -760,6 +836,22 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* Soft Copy */}
+              {softCopyItems(quotation.soft_copy_options, quotation.soft_copy_custom).length > 0 && (
+                <div className="mb-5">
+                  <h3 className="text-xs font-bold text-[#5b1e2d] uppercase tracking-wide pb-2 border-b border-[#e6c9a9] mb-3">
+                    Soft Copy
+                  </h3>
+                  <div className="bg-[#faf6f2] p-3 rounded border-l-[3px] border-l-[#5b1e2d]">
+                    <ul className="list-disc pl-4 text-sm font-semibold text-gray-900">
+                      {softCopyItems(quotation.soft_copy_options, quotation.soft_copy_custom).map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
 
@@ -816,7 +908,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
                   )}
                   {quotation.discount_amount > 0 && (
                     <div className="flex justify-between py-2 text-green-700">
-                      <span>Discount ({quotation.discount_percent}%)</span>
+                      <span>{quotation.discount_percent > 0 ? `Discount (${quotation.discount_percent}%)` : "Discount"}</span>
                       <span>- {formatCurrency(quotation.discount_amount)}</span>
                     </div>
                   )}

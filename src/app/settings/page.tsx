@@ -23,6 +23,34 @@ export default function SettingsPage() {
     return saved ? JSON.parse(saved) : { order_completion: true };
   });
 
+  const quotationAutomationKeys = ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"];
+  const paymentAutomationKeys = [...paymentTypes, "Other"];
+  const workflowAutomationKeys = ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"];
+  const orderAutomationKeys = ["Order Completed"];
+
+  const [whatsappAutomation, setWhatsappAutomation] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_automation");
+    return saved ? JSON.parse(saved) : {
+      "Quotation Created": false,
+      "Quotation Pending": false,
+      "Quotation Confirmed": false,
+      "Quotation Declined": false,
+      "Initial Advance": false,
+      "Function Advance": false,
+      "Printing Advance": false,
+      "Final Payment": false,
+      "Other": false,
+      "Photo Selection": false,
+      "Album Design": false,
+      "Album Printing": false,
+      "Video Editing": false,
+      "Outdoor Shoot": false,
+      "Album Delivery": false,
+      "Order Completed": false,
+    };
+  });
+
   const paymentAvailableFields = [
     { placeholder: "{customerName}", description: "Customer name" },
     { placeholder: "{orderNumber}", description: "Order ID" },
@@ -97,6 +125,11 @@ export default function SettingsPage() {
   const getMessageContent = (paymentType: string) => {
     return whatsappMessages[paymentType] || defaultMessages[paymentType] || "";
   };
+
+  const allTemplateKeys = Array.from(new Set([
+    ...Object.keys(defaultMessages),
+    ...Object.keys(whatsappMessages),
+  ])).sort();
 
   const colorThemes = [
     { name: "Indigo", value: "indigo" as const, color: "bg-indigo-500" },
@@ -269,8 +302,60 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* All Templates */}
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+            <h4 className="font-semibold text-[var(--foreground)] mb-3">All WhatsApp Templates</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              {allTemplateKeys.map((key) => (
+                <div key={key} className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{key}</div>
+                  <div className="mt-2 text-sm whitespace-pre-wrap text-[var(--foreground)] font-mono">
+                    {getMessageContent(key)}
+                  </div>
+                  {whatsappMessages[key] && (
+                    <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">✓ Custom</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Message Type Messages */}
           <div className="space-y-4">
+            {activeTab === "payments" && (
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-[var(--foreground)]">Automation (Payments)</h4>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1">Toggle auto-sending for each payment type</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {paymentAutomationKeys.map((key) => (
+                    <div key={key} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--secondary)]/20 px-3 py-2">
+                      <span className="text-sm text-[var(--foreground)]">{key}</span>
+                      <button
+                        onClick={() => {
+                          const updated = { ...whatsappAutomation, [key]: !whatsappAutomation[key] };
+                          setWhatsappAutomation(updated);
+                          localStorage.setItem("whatsapp_automation", JSON.stringify(updated));
+                        }}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                          whatsappAutomation[key] ? "bg-emerald-500" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            whatsappAutomation[key] ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeTab === "payments" && paymentTypes.map((paymentType) => (
               <div key={paymentType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -334,7 +419,41 @@ export default function SettingsPage() {
               </div>
             ))}
 
-            {activeTab === "quotations" && ["Quotation Pending", "Quotation Confirmed", "Quotation Declined"].map((quotationType) => (
+            {activeTab === "quotations" && (
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-[var(--foreground)]">Automation (Quotations)</h4>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1">Toggle auto-sending for each quotation status</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {quotationAutomationKeys.map((key) => (
+                    <div key={key} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--secondary)]/20 px-3 py-2">
+                      <span className="text-sm text-[var(--foreground)]">{key}</span>
+                      <button
+                        onClick={() => {
+                          const updated = { ...whatsappAutomation, [key]: !whatsappAutomation[key] };
+                          setWhatsappAutomation(updated);
+                          localStorage.setItem("whatsapp_automation", JSON.stringify(updated));
+                        }}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                          whatsappAutomation[key] ? "bg-emerald-500" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            whatsappAutomation[key] ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "quotations" && ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"].map((quotationType) => (
               <div key={quotationType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[var(--foreground)]">{quotationType}</h4>
@@ -396,6 +515,40 @@ export default function SettingsPage() {
                 )}
               </div>
             ))}
+
+            {activeTab === "workflow" && (
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-[var(--foreground)]">Automation (Workflow)</h4>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1">Toggle auto-sending for each workflow stage</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {workflowAutomationKeys.map((key) => (
+                    <div key={key} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--secondary)]/20 px-3 py-2">
+                      <span className="text-sm text-[var(--foreground)]">{key}</span>
+                      <button
+                        onClick={() => {
+                          const updated = { ...whatsappAutomation, [key]: !whatsappAutomation[key] };
+                          setWhatsappAutomation(updated);
+                          localStorage.setItem("whatsapp_automation", JSON.stringify(updated));
+                        }}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                          whatsappAutomation[key] ? "bg-emerald-500" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            whatsappAutomation[key] ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {activeTab === "workflow" && ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"].map((workflowStage) => (
               <div key={workflowStage} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
@@ -466,27 +619,28 @@ export default function SettingsPage() {
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h4 className="font-semibold text-[var(--foreground)]">WhatsApp Notifications</h4>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-1">Send message when order is marked as complete</p>
+                      <h4 className="font-semibold text-[var(--foreground)]">Automation (Orders)</h4>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-1">Toggle auto-sending for order completion</p>
                     </div>
                     <button
                       onClick={() => {
-                        const updated = { ...whatsappSettings, order_completion: !whatsappSettings.order_completion };
-                        setWhatsappSettings(updated);
-                        localStorage.setItem("whatsapp_settings", JSON.stringify(updated));
+                        const key = "Order Completed";
+                        const updated = { ...whatsappAutomation, [key]: !whatsappAutomation[key] };
+                        setWhatsappAutomation(updated);
+                        localStorage.setItem("whatsapp_automation", JSON.stringify(updated));
                       }}
                       className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                        whatsappSettings.order_completion ? "bg-emerald-500" : "bg-gray-300"
+                        whatsappAutomation["Order Completed"] ? "bg-emerald-500" : "bg-gray-300"
                       }`}
                     >
                       <span
                         className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                          whatsappSettings.order_completion ? "translate-x-7" : "translate-x-1"
+                          whatsappAutomation["Order Completed"] ? "translate-x-7" : "translate-x-1"
                         }`}
                       />
                     </button>
                   </div>
-                  {whatsappSettings.order_completion && (
+                  {whatsappAutomation["Order Completed"] && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ Enabled</p>
                   )}
                 </div>

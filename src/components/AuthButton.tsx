@@ -79,7 +79,7 @@ export default function AuthButton() {
   if (!supabase) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-2 xs:px-3 py-2 text-xs font-medium text-amber-700">
-        <span>⚠️</span>
+        <span>{"\u26A0\uFE0F"}</span>
         <span>Auth not configured</span>
       </div>
     );

@@ -113,6 +113,51 @@ export default function QuotationsListPage() {
   }, []);
 
   // WhatsApp integration
+  const getAutomationSettings = (): Record<string, boolean> => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_automation");
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const formatPhoneForMetaWhatsApp = (phone: string): string | null => {
+    if (!phone) return null;
+    let cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.startsWith("0")) cleanPhone = cleanPhone.replace(/^0+/, "");
+    if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+    if (cleanPhone.length < 10) return null;
+    return cleanPhone;
+  };
+
+  const sendMetaWhatsAppMessage = async (phone: string, message: string) => {
+    const to = formatPhoneForMetaWhatsApp(phone);
+    if (!to) return;
+    try {
+      await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, message }),
+      });
+    } catch (err) {
+      console.error("Error sending Meta WhatsApp message:", err);
+    }
+  };
+
+  const maybeSendAutomationMessage = async (quotation: Quotation, statusKey: string) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[statusKey]) return;
+    if (!quotation.customers?.phone) return;
+    const whatsappMessage = generateQuotationMessage(
+      quotation.customers.name || "",
+      quotation.quotation_number,
+      statusKey,
+      quotation.total_amount,
+      quotation.event_type,
+      quotation.event_date ? formatDate(quotation.event_date) : "",
+      quotation.valid_until ? formatDate(quotation.valid_until) : ""
+    );
+    await sendMetaWhatsAppMessage(quotation.customers.phone, whatsappMessage);
+  };
+
   const sendWhatsAppNotification = (phone: string, message: string) => {
     if (!phone) return;
     let cleanPhone = phone.replace(/\D/g, '');
@@ -313,6 +358,8 @@ export default function QuotationsListPage() {
           confirmed_at: new Date().toISOString(),
         })
         .eq("id", quotation.id);
+
+      await maybeSendAutomationMessage(quotation, "Quotation Confirmed");
       
       // Ask user if they want to send WhatsApp notification
       if (quotation.customers?.phone && confirm(`Booking confirmed!\n\nWould you like to send a WhatsApp confirmation to ${quotation.customers.name}?`)) {
@@ -365,6 +412,8 @@ export default function QuotationsListPage() {
         .in("status", ["Draft", "Pending"]);
       
       if (error) throw error;
+
+      await maybeSendAutomationMessage(selectedQuotation, "Quotation Declined");
       
       // Ask user if they want to send WhatsApp notification
       if (selectedQuotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${selectedQuotation.customers.name}?`)) {
@@ -406,6 +455,8 @@ export default function QuotationsListPage() {
         .eq("status", "Draft");
       
       if (error) throw error;
+
+      await maybeSendAutomationMessage(quotation, "Quotation Pending");
       
       // Ask user if they want to send WhatsApp notification
       if (quotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${quotation.customers.name} with the quotation?`)) {
@@ -665,35 +716,41 @@ export default function QuotationsListPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/quotation"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition-all hover:shadow-lg hover:shadow-indigo-500/30"
+          >
+            Create Quotation
+          </Link>
           {/* Prominent totals card - visible on sm+ next to header (no New button) */}
-          <div className="hidden sm:flex flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--foreground)] shadow-md w-72 md:w-96">
-            <div className="flex items-center justify-between">
+          <div className="hidden sm:flex w-full items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--foreground)] shadow-md">
+            <div className="flex items-center gap-4">
               <div>
-                <div className="text-xs text-[var(--muted-foreground)]">Total Quotations</div>
-                <div className="text-2xl md:text-3xl font-extrabold">{stats.total}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Total Quotations</div>
+                <div className="text-xl md:text-2xl font-extrabold leading-none">{stats.total}</div>
               </div>
-              <div className="text-2xl md:text-3xl">📄</div>
+              <div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value</div>
+                <div className="text-base md:text-lg font-bold leading-none">&#8377;{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
+              </div>
             </div>
-            <div className="mt-3 border-t border-[var(--border)] pt-3">
-              <div className="text-xs text-[var(--muted-foreground)]">Total Value</div>
-              <div className="text-lg md:text-2xl font-bold">₹{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="text-center">
-                <div className="text-lg font-bold">{stats.draft}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Draft</div>
+            <div className="h-10 w-px bg-[var(--border)]"></div>
+            <div className="grid flex-1 grid-cols-4 gap-2 text-center">
+              <div>
+                <div className="text-sm font-bold leading-none">{stats.draft}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Draft</div>
               </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{stats.pending}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Pending</div>
+              <div>
+                <div className="text-sm font-bold leading-none">{stats.pending}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Pending</div>
               </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{stats.confirmed}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Confirmed</div>
+              <div>
+                <div className="text-sm font-bold leading-none">{stats.confirmed}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Confirmed</div>
               </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{stats.declined}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">Declined</div>
+              <div>
+                <div className="text-sm font-bold leading-none">{stats.declined}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Declined</div>
               </div>
             </div>
           </div>
@@ -792,84 +849,219 @@ export default function QuotationsListPage() {
             </div>
             <p className="text-[var(--muted-foreground)]">No quotations found</p>
             <Link
-              href="/customers/new"
+              href="/quotation"
               className="mt-4 text-sm font-medium text-indigo-500 hover:underline"
             >
               Create your first quotation →
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
-              <thead>
-                <tr className="border-b border-[var(--border)]">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Quotation ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Event</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Valid Until</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {filteredQuotations.map((quotation) => (
-                  <tr key={quotation.id} className="hover:bg-[var(--secondary)]/50 transition-colors">
-                    <td className="px-4 py-4">
+          <>
+            <div className="grid gap-4 lg:hidden">
+              {filteredQuotations.map((quotation) => (
+                <div key={quotation.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
                       <Link
                         href={`/quotation?editId=${quotation.id}`}
-                        className="font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                        className="font-mono text-sm font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
                       >
                         {quotation.quotation_number}
                       </Link>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div>
-                        <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">{quotation.customers?.phone || ""}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div>
-                        <p className="text-sm text-[var(--foreground)]">{quotation.event_type}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          {formatDate(quotation.event_date)}
-                          {quotation.event_city && ` • ${quotation.event_city}`}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-semibold text-[var(--foreground)]">
-                        ₹{quotation.total_amount.toLocaleString("en-IN")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusColors[quotation.status] || statusColors.Draft}`}>
-                        {quotation.status}
-                      </span>
-                      {quotation.order_id && (
-                        <Link
-                          href={`/orders/${quotation.order_id}`}
-                          className="ml-2 text-xs text-indigo-500 hover:underline"
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        {quotation.event_type}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusColors[quotation.status] || statusColors.Draft}`}>
+                      {quotation.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 text-sm">
+                    <div>
+                      <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
+                      <p className="text-xs text-[var(--muted-foreground)]">{quotation.customers?.phone || ""}</p>
+                    </div>
+                    <div className="text-xs text-[var(--muted-foreground)]">
+                      {formatDate(quotation.event_date)}
+                      {quotation.event_city && ` • ${quotation.event_city}`}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-[var(--muted-foreground)]">Amount</span>
+                    <span className="font-semibold text-[var(--foreground)]">
+                      ₹{quotation.total_amount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 flex items-center justify-between text-sm">
+                    <span className="text-[var(--muted-foreground)]">Valid Until</span>
+                    <span className={`${
+                      quotation.valid_until && new Date(quotation.valid_until) < new Date()
+                        ? "text-red-500"
+                        : "text-[var(--muted-foreground)]"
+                    }`}>
+                      {formatDate(quotation.valid_until)}
+                    </span>
+                  </div>
+
+                  {quotation.order_id && (
+                    <Link
+                      href={`/orders/${quotation.order_id}`}
+                      className="mt-2 inline-flex text-xs font-medium text-indigo-500 hover:underline"
+                    >
+                      View Order →
+                    </Link>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      href={`/quotation?editId=${quotation.id}`}
+                      className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                    >
+                      Edit
+                    </Link>
+
+                    <Link
+                      href={`/quotations/${quotation.id}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                    >
+                      View PDF
+                    </Link>
+
+                    {quotation.status === 'Confirmed' && quotation.order_id && (
+                      <Link
+                        href={`/orders/${quotation.order_id}`}
+                        className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                      >
+                        View Order
+                      </Link>
+                    )}
+
+                    {quotation.status === 'Draft' && (
+                      <button
+                        onClick={() => handleMarkAsPending(quotation)}
+                        disabled={pendingId === quotation.id}
+                        className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                      >
+                        {pendingId === quotation.id ? 'Processing...' : 'Mark as Pending'}
+                      </button>
+                    )}
+
+                    {(quotation.status === 'Draft' || quotation.status === 'Pending') && (
+                      <>
+                        <button
+                          onClick={() => handleConfirm(quotation)}
+                          disabled={confirmingId === quotation.id}
+                          className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
                         >
-                          View Order →
-                        </Link>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`text-sm ${
-                        quotation.valid_until && new Date(quotation.valid_until) < new Date()
-                          ? "text-red-500"
-                          : "text-[var(--muted-foreground)]"
-                      }`}>
-                        {formatDate(quotation.valid_until)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-2">
+                          {confirmingId === quotation.id ? 'Processing...' : 'Confirm'}
+                        </button>
+                        <button
+                          onClick={() => handleDeclineClick(quotation)}
+                          disabled={decliningId === quotation.id}
+                          className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    )}
+
+                    {quotation.customers?.phone && (
+                      <button
+                        onClick={() => handleSendQuotationWhatsApp(quotation)}
+                        className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                      >
+                        Send WhatsApp
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleDeleteClick(quotation)}
+                      disabled={deletingId === quotation.id}
+                      className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                    >
+                      {deletingId === quotation.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Quotation ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Event</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Valid Until</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {filteredQuotations.map((quotation) => (
+                    <tr key={quotation.id} className="hover:bg-[var(--secondary)]/50 transition-colors">
+                      <td className="px-4 py-4">
                         <Link
                           href={`/quotation?editId=${quotation.id}`}
-                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                          className="font-mono text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                        >
+                          {quotation.quotation_number}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
+                          <p className="text-xs text-[var(--muted-foreground)]">{quotation.customers?.phone || ""}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="text-sm text-[var(--foreground)]">{quotation.event_type}</p>
+                          <p className="text-xs text-[var(--muted-foreground)]">
+                            {formatDate(quotation.event_date)}
+                            {quotation.event_city && ` • ${quotation.event_city}`}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="font-semibold text-[var(--foreground)]">
+                          ₹{quotation.total_amount.toLocaleString("en-IN")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusColors[quotation.status] || statusColors.Draft}`}>
+                          {quotation.status}
+                        </span>
+                        {quotation.order_id && (
+                          <Link
+                            href={`/orders/${quotation.order_id}`}
+                            className="ml-2 text-xs text-indigo-500 hover:underline"
+                          >
+                            View Order →
+                          </Link>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`text-sm ${
+                          quotation.valid_until && new Date(quotation.valid_until) < new Date()
+                            ? "text-red-500"
+                            : "text-[var(--muted-foreground)]"
+                        }`}>
+                          {formatDate(quotation.valid_until)}
+                        </span>
+                      </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap items-center justify-start gap-2">
+                        <Link
+                          href={`/quotation?editId=${quotation.id}`}
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
                         >
                           Edit
                         </Link>
@@ -878,53 +1070,53 @@ export default function QuotationsListPage() {
                           href={`/quotations/${quotation.id}/pdf`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
                         >
                           View PDF
                         </Link>
 
-                        {quotation.status === 'Confirmed' && quotation.order_id && (
+                          {quotation.status === 'Confirmed' && quotation.order_id && (
                           <Link
                             href={`/orders/${quotation.order_id}`}
-                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
                           >
                             View Order
                           </Link>
                         )}
 
-                        {quotation.status === 'Draft' && (
+                          {quotation.status === 'Draft' && (
                           <button
                             onClick={() => handleMarkAsPending(quotation)}
                             disabled={pendingId === quotation.id}
-                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50 whitespace-nowrap"
                           >
                             {pendingId === quotation.id ? 'Processing...' : 'Mark as Pending'}
                           </button>
                         )}
 
-                        {(quotation.status === 'Draft' || quotation.status === 'Pending') && (
-                          <>
+                          {(quotation.status === 'Draft' || quotation.status === 'Pending') && (
+                            <>
                             <button
                               onClick={() => handleConfirm(quotation)}
                               disabled={confirmingId === quotation.id}
-                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50 whitespace-nowrap"
                             >
                               {confirmingId === quotation.id ? 'Processing...' : 'Confirm'}
                             </button>
                             <button
                               onClick={() => handleDeclineClick(quotation)}
                               disabled={decliningId === quotation.id}
-                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                              className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50 whitespace-nowrap"
                             >
                               Decline
                             </button>
                           </>
                         )}
 
-                        {quotation.customers?.phone && (
+                          {quotation.customers?.phone && (
                           <button
                             onClick={() => handleSendQuotationWhatsApp(quotation)}
-                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
+                            className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
                           >
                             Send WhatsApp
                           </button>
@@ -933,17 +1125,18 @@ export default function QuotationsListPage() {
                         <button
                           onClick={() => handleDeleteClick(quotation)}
                           disabled={deletingId === quotation.id}
-                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
+                          className="text-sm px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
                           {deletingId === quotation.id ? 'Deleting...' : 'Delete'}
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </SectionCard>
 

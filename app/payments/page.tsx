@@ -55,14 +55,79 @@ const sendWhatsAppNotification = (phone: string, message: string) => {
   if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
   if (cleanPhone.length < 10) return;
   const encodedMessage = encodeURIComponent(message);
-  const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`;
+  const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
   try {
-    const w = window.open(url, '_blank');
-    if (!w) window.location.href = url;
-    else setTimeout(() => { try { w.focus(); } catch {} }, 500);
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = waUrl;
+      return;
+    }
+    const w = window.open(waUrl, '_blank');
+    if (!w) window.location.href = waUrl;
+    else setTimeout(() => { try { w.focus(); } catch { } }, 500);
   } catch {
-    window.location.href = url;
+    window.location.href = waUrl;
   }
+};
+
+// Automation helpers (Meta WhatsApp)
+const getAutomationSettings = (): Record<string, boolean> => {
+  if (typeof window === "undefined") return {};
+  const saved = localStorage.getItem("whatsapp_automation");
+  return saved ? JSON.parse(saved) : {};
+};
+
+const formatPhoneForMetaWhatsApp = (phone: string): string | null => {
+  if (!phone) return null;
+  let cleanPhone = phone.replace(/\D/g, "");
+  if (cleanPhone.startsWith("0")) cleanPhone = cleanPhone.replace(/^0+/, "");
+  if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+  if (cleanPhone.length < 10) return null;
+  return cleanPhone;
+};
+
+const sendMetaWhatsAppMessage = async (phone: string, message: string) => {
+  const to = formatPhoneForMetaWhatsApp(phone);
+  if (!to) return;
+  try {
+    await fetch("/api/whatsapp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, message }),
+    });
+  } catch (err) {
+    console.error("Error sending Meta WhatsApp message:", err);
+  }
+};
+
+const maybeSendPaymentAutomationMessage = async (key: string, payload: {
+  customerName: string;
+  customerPhone: string;
+  orderNumber: string;
+  amount: number;
+  totalAmount: number;
+  balanceDue: number;
+  paymentMethod: string;
+  eventType: string;
+  eventDate: string;
+}) => {
+  const settings = getAutomationSettings();
+  if (!settings?.[key]) return;
+  if (!payload.customerPhone) return;
+
+  const whatsappMessage = generatePaymentTypeMessage(
+    payload.customerName || "",
+    payload.orderNumber || "",
+    key,
+    payload.amount || 0,
+    payload.totalAmount || 0,
+    payload.balanceDue || 0,
+    payload.paymentMethod || "",
+    payload.eventType || "",
+    payload.eventDate || ""
+  );
+
+  await sendMetaWhatsAppMessage(payload.customerPhone, whatsappMessage);
 };
 
 // Generate payment type-specific WhatsApp message with custom templates
@@ -303,6 +368,18 @@ export default function PaymentsPage() {
           order.balance_due - paymentForm.amount,
           paymentForm.method
         );
+
+        await maybeSendPaymentAutomationMessage(paymentForm.type || "Other", {
+          customerName: order.customers.name,
+          customerPhone: order.customers.phone,
+          orderNumber: order.order_number,
+          amount: paymentForm.amount,
+          totalAmount: order.total_amount,
+          balanceDue: order.balance_due - paymentForm.amount,
+          paymentMethod: paymentForm.method,
+          eventType: order.event_type || "",
+          eventDate: "",
+        });
 
         if (confirm(`Would you like to send a WhatsApp notification to ${order.customers.name}?`)) {
           sendWhatsAppNotification(order.customers.phone, whatsappMessage);

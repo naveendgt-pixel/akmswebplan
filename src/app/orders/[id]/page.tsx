@@ -366,6 +366,69 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   // WhatsApp notification helper
+  const getAutomationSettings = (): Record<string, boolean> => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_automation");
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const formatPhoneForMetaWhatsApp = (phone: string): string | null => {
+    if (!phone) return null;
+    let cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.startsWith("0")) cleanPhone = cleanPhone.replace(/^0+/, "");
+    if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+    if (cleanPhone.length < 10) return null;
+    return cleanPhone;
+  };
+
+  const sendMetaWhatsAppMessage = async (phone: string, message: string) => {
+    const to = formatPhoneForMetaWhatsApp(phone);
+    if (!to) return;
+    try {
+      await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, message }),
+      });
+    } catch (err) {
+      console.error("Error sending Meta WhatsApp message:", err);
+    }
+  };
+
+  const maybeSendWorkflowAutomation = async (workflowStage: string, message: string) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[workflowStage]) return;
+    if (!order?.customer_phone) return;
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
+  const maybeSendOrderCompletionAutomation = async (message: string) => {
+    const settings = getAutomationSettings();
+    if (!order?.customer_phone) return;
+
+    if (typeof settings?.["Order Completed"] === "boolean") {
+      if (!settings["Order Completed"]) return;
+    } else {
+      const fallback = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("whatsapp_settings") || "{}");
+        } catch {
+          return {};
+        }
+      })();
+      if (fallback.order_completion === false) return;
+    }
+
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
+  const maybeSendPaymentAutomation = async (paymentType: string, message: string) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[paymentType]) return;
+    if (!order?.customer_phone) return;
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
   const sendWhatsAppNotification = (phone: string, message: string) => {
     if (!phone) return;
     // Normalize phone: keep digits, strip leading zeros, ensure country code
@@ -629,7 +692,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
     const origin = window.location.origin;
 
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order - ' + order.order_number + '</title><style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; background: #fff; } .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #5b1e2d; } .logo { font-size: 28px; font-weight: bold; color: #5b1e2d; } .logo-sub { font-size: 12px; color: #64748b; } .doc-info { text-align: right; } .doc-title { font-size: 24px; font-weight: bold; color: #1e293b; } .doc-number { font-size: 14px; color: #64748b; margin-top: 4px; } .section { margin-bottom: 25px; } .section-title { font-size: 14px; font-weight: 600; color: #5b1e2d; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; } .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; } .info-box { padding: 12px; background: #f8fafc; border-radius: 8px; } .info-label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; } .info-value { font-size: 14px; font-weight: 500; color: #1e293b; } .workflow-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; } .workflow-item { padding: 10px; border-radius: 8px; text-align: center; } .workflow-complete { background: #dcfce7; border: 1px solid #22c55e; } .workflow-pending { background: #fef2f2; border: 1px solid #ef4444; } .workflow-label { font-size: 11px; font-weight: 600; } .workflow-status { font-size: 10px; margin-top: 4px; } table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; } th { background: #f1f5f9; font-weight: 600; color: #475569; } .amount { text-align: right; } .total-row { font-weight: bold; background: #5b1e2d; color: white; } .total-row td { border: none; } .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; } .summary-box { padding: 15px; border-radius: 8px; text-align: center; } .summary-total { background: linear-gradient(135deg, #5b1e2d, #8b5cf6); color: white; } .summary-paid { background: #dcfce7; } .summary-expense { background: #fef2f2; } .summary-profit { background: #dbeafe; } .summary-value { font-size: 18px; font-weight: bold; margin-top: 4px; } .summary-label { font-size: 11px; opacity: 0.8; } .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center; } @media print { body { padding: 20px; } }</style></head><body>' +
-      '<div class="header"><div><img src="' + origin + '/ak-logo-final.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" /><div class="logo-sub">Photography & Events</div></div><div class="doc-info"><div class="doc-title">ORDER DETAILS</div><div class="doc-number">' + order.order_number + '</div><div class="doc-number">Date: ' + formatDate(order.created_at) + '</div></div></div>' +
+      '<div class="header"><div><img src="' + origin + '/ak-logo-final-v2.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" /><div class="logo-sub">Photography & Events</div></div><div class="doc-info"><div class="doc-title">ORDER DETAILS</div><div class="doc-number">' + order.order_number + '</div><div class="doc-number">Date: ' + formatDate(order.created_at) + '</div></div></div>' +
       '<div class="section"><div class="section-title">Customer & Event Information</div><div class="info-grid"><div class="info-box"><div class="info-label">Customer</div><div class="info-value">' + (order.customer_name || "N/A") + '</div><div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + (order.customer_phone || "") + (order.customer_email ? " • " + order.customer_email : "") + '</div></div><div class="info-box"><div class="info-label">Event Details</div><div class="info-value">' + (order.event_type || "N/A") + '</div><div style="font-size: 12px; color: #64748b; margin-top: 4px;">' + formatDate(order.event_date) + (order.event_venue ? " • " + order.event_venue : "") + '</div></div></div></div>' +
       '<div class="section"><div class="section-title">Workflow Status</div><div class="workflow-grid">' + workflowItemsHtml + '</div></div>' +
       '<div class="section"><div class="section-title">Services & Items</div><table><thead><tr><th>Description</th><th>Category</th><th class="amount">Qty</th><th class="amount">Amount</th></tr></thead><tbody>' + itemsHtml + '<tr class="total-row"><td colspan="3">Total Order Amount</td><td class="amount">₹' + (order.total_amount || 0).toLocaleString() + '</td></tr></tbody></table></div>' +

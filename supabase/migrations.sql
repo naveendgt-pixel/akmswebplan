@@ -64,6 +64,25 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS other_deliverable_comp BOOLEAN DEFAU
 -- Add more migrations below as needed:
 -- ============================================================
 
+-- Add referred_by field for customers
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referred_by VARCHAR(255);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_title VARCHAR(10);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referred_by_title VARCHAR(10);
+
+-- Soft copy fields for quotations/orders
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS soft_copy_options TEXT[];
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS soft_copy_custom VARCHAR(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS soft_copy_options TEXT[];
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS soft_copy_custom VARCHAR(255);
+
+-- Required fields for customer name/phone
+ALTER TABLE customers ALTER COLUMN name SET NOT NULL;
+ALTER TABLE customers ALTER COLUMN phone SET NOT NULL;
+
+-- Allow event_type to be optional on quotations/orders
+ALTER TABLE quotations ALTER COLUMN event_type DROP NOT NULL;
+ALTER TABLE orders ALTER COLUMN event_type DROP NOT NULL;
+
 -- Push subscriptions for Web Push (VAPID)
 CREATE TABLE IF NOT EXISTS push_subscriptions (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

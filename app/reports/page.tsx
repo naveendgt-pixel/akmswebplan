@@ -194,7 +194,7 @@ export default function ReportsPage() {
 <body>
   <div class="header">
     <div>
-      <img src="${window.location.origin}/ak-logo-final.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" />
+      <img src="${window.location.origin}/ak-logo-final-v2.png" alt="Aura Knot" style="height:48px; width:auto; display:block; margin-bottom:6px;" />
       <div class="logo-sub">Photography & Events</div>
     </div>
     <div class="doc-info">

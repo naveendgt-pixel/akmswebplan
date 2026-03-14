@@ -33,8 +33,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE customers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(255) NOT NULL,
+  customer_title VARCHAR(10),
   email VARCHAR(255),
   phone VARCHAR(50) NOT NULL,
+  referred_by VARCHAR(255),
+  referred_by_title VARCHAR(10),
+  referred_by VARCHAR(255),
   alternate_phone VARCHAR(50),
   address TEXT,
   city VARCHAR(100),
@@ -73,7 +77,7 @@ CREATE TABLE quotations (
   customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
   order_id UUID DEFAULT NULL,
   -- Event Details
-  event_type VARCHAR(100) NOT NULL,
+  event_type VARCHAR(100),
   event_date DATE,
   event_end_date DATE,
   event_venue TEXT,
@@ -123,6 +127,8 @@ CREATE TABLE quotations (
   tax_percent DECIMAL(5, 2) DEFAULT 0,
   tax_amount DECIMAL(12, 2) DEFAULT 0,
   total_amount DECIMAL(12, 2) DEFAULT 0,
+  soft_copy_options TEXT[],
+  soft_copy_custom VARCHAR(255),
   -- Status and Metadata
   status VARCHAR(50) DEFAULT 'Draft',
   valid_until DATE,
@@ -169,7 +175,7 @@ CREATE TABLE orders (
   customer_phone VARCHAR(50),
   customer_email VARCHAR(255),
   -- Event Details Snapshot
-  event_type VARCHAR(100) NOT NULL,
+  event_type VARCHAR(100),
   event_date DATE,
   event_end_date DATE,
   event_venue TEXT,
@@ -218,6 +224,8 @@ CREATE TABLE orders (
   discount_amount DECIMAL(12, 2) DEFAULT 0,
   tax_amount DECIMAL(12, 2) DEFAULT 0,
   total_amount DECIMAL(12, 2) DEFAULT 0,
+  soft_copy_options TEXT[],
+  soft_copy_custom VARCHAR(255),
   final_budget DECIMAL(12, 2) DEFAULT NULL,
   -- Payment Tracking
   amount_paid DECIMAL(12, 2) DEFAULT 0,

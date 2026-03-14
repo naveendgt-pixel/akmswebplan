@@ -15,15 +15,15 @@ const isActiveRoute = (pathname: string, href: string) => {
 };
 
 const navIcons: Record<string, string> = {
-  "/dashboard": "📊",
-  "/customers/new": "👤",
-  "/quotation": "📝",
-  "/quotations": "📋",
-  "/services": "🎯",
-  "/orders": "📦",
-  "/payments": "💳",
-  "/reports": "📈",
-  "/settings": "⚙️",
+  "/dashboard": "\u{1F4CA}",
+  "/customers/new": "\u{1F464}",
+  "/quotation": "\u{1F4DD}",
+  "/quotations": "\u{1F4CB}",
+  "/services": "\u{1F3AF}",
+  "/orders": "\u{1F4E6}",
+  "/payments": "\u{1F4B3}",
+  "/reports": "\u{1F4C8}",
+  "/settings": "\u2699\uFE0F",
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -81,7 +81,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         /* ignore */
       }
     }
-    if (!supabase) return;
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     let mounted = true;
     const syncSession = async () => {
       if (!supabase) return;

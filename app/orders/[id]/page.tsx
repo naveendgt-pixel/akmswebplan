@@ -366,6 +366,69 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   // WhatsApp notification helper
+  const getAutomationSettings = (): Record<string, boolean> => {
+    if (typeof window === "undefined") return {};
+    const saved = localStorage.getItem("whatsapp_automation");
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const formatPhoneForMetaWhatsApp = (phone: string): string | null => {
+    if (!phone) return null;
+    let cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.startsWith("0")) cleanPhone = cleanPhone.replace(/^0+/, "");
+    if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+    if (cleanPhone.length < 10) return null;
+    return cleanPhone;
+  };
+
+  const sendMetaWhatsAppMessage = async (phone: string, message: string) => {
+    const to = formatPhoneForMetaWhatsApp(phone);
+    if (!to) return;
+    try {
+      await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, message }),
+      });
+    } catch (err) {
+      console.error("Error sending Meta WhatsApp message:", err);
+    }
+  };
+
+  const maybeSendWorkflowAutomation = async (workflowStage: string, message: string) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[workflowStage]) return;
+    if (!order?.customer_phone) return;
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
+  const maybeSendOrderCompletionAutomation = async (message: string) => {
+    const settings = getAutomationSettings();
+    if (!order?.customer_phone) return;
+
+    if (typeof settings?.["Order Completed"] === "boolean") {
+      if (!settings["Order Completed"]) return;
+    } else {
+      const fallback = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("whatsapp_settings") || "{}");
+        } catch {
+          return {};
+        }
+      })();
+      if (fallback.order_completion === false) return;
+    }
+
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
+  const maybeSendPaymentAutomation = async (paymentType: string, message: string) => {
+    const settings = getAutomationSettings();
+    if (!settings?.[paymentType]) return;
+    if (!order?.customer_phone) return;
+    await sendMetaWhatsAppMessage(order.customer_phone, message);
+  };
+
   const sendWhatsAppNotification = (phone: string, message: string) => {
     if (!phone) return;
     // Normalize phone: keep digits, strip leading zeros, ensure country code

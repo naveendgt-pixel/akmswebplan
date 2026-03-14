@@ -235,43 +235,39 @@ export default function OrdersPage() {
               
               return (
                 <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-                  <div className="flex items-center gap-3 px-3 py-2">
-                    {/* Order ID column: individual visible column with Send action */}
-                    <div className="flex flex-col items-start justify-center gap-2 min-w-[160px] px-2">
+                  {/* Row 1: ID, customer, actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 border-b border-[var(--border)]">
+                    <div className="flex flex-col min-w-[160px]">
                       <Link href={`/orders/${order.id}`} className="font-semibold text-[var(--primary)] hover:underline whitespace-nowrap">{order.order_number}</Link>
                       <div className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.name || '—'}</div>
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          onClick={() => sendOrderWhatsApp(order)}
-                          className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
-                        >
-                          Send
-                        </button>
-                        <Link
-                          href={`/orders/${order.id}`}
-                          className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
-                        >
-                          View
-                        </Link>
-                      </div>
                     </div>
-
-                    <div className="flex-1 flex items-center gap-4 min-w-0">
-                      <div className="text-sm text-[var(--foreground)] whitespace-nowrap">{order.event_type} • {formatDate(order.event_date)}</div>
-                      <div className="text-sm font-bold text-[var(--primary)] whitespace-nowrap">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</div>
-                      <div className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>{order.payment_status}</div>
-
-                      <div className="flex items-center gap-2 min-w-[120px]">
-                        <div className="h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`} style={{ width: `${(completedStages / workflowStages.length) * 100}%` }} />
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)] whitespace-nowrap">{completedStages}/{workflowStages.length}</div>
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => sendOrderWhatsApp(order)}
+                        className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
+                      >
+                        Send
+                      </button>
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
+                      >
+                        View
+                      </Link>
                     </div>
+                  </div>
 
-                    <div className="flex-shrink-0 hidden">
-                      {/* preserved for layout parity (hidden as order id column now contains View) */}
-                      <Link href={`/orders/${order.id}`} className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] whitespace-nowrap">View</Link>
+                  {/* Row 2: event, amount, status, progress */}
+                  <div className="flex flex-wrap items-center gap-3 px-3 py-2">
+                    <div className="text-sm text-[var(--foreground)] whitespace-nowrap">{order.event_type} • {formatDate(order.event_date)}</div>
+                    <div className="text-sm font-bold text-[var(--primary)] whitespace-nowrap">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</div>
+                    <div className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>{order.payment_status}</div>
+
+                    <div className="flex items-center gap-2 min-w-[120px]">
+                      <div className="h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`} style={{ width: `${(completedStages / workflowStages.length) * 100}%` }} />
+                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)] whitespace-nowrap">{completedStages}/{workflowStages.length}</div>
                     </div>
                   </div>
                 </div>
