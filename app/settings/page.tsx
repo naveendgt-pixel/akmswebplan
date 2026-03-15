@@ -20,6 +20,9 @@ export default function SettingsPage() {
   const quotationAutomationKeys = ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"];
   const paymentAutomationKeys = [...paymentTypes, "Other"];
   const workflowAutomationKeys = ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"];
+  const workflowTemplateKeys = ["Photo Selection Pending", ...workflowAutomationKeys];
+  const quotationTemplateKeys = ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"];
+  const paymentTemplateKeys = [...paymentTypes, "Other"];
   const [whatsappAutomation, setWhatsappAutomation] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
     const saved = localStorage.getItem("whatsapp_automation");
@@ -88,6 +91,7 @@ export default function SettingsPage() {
     "Quotation Confirmed": `Hi {customerName},\n\nThank you for confirming Quotation #{quotationNumber}!\n\n✓ Booking Confirmed\nAmount: {quotationAmount}\n\nWe're excited to capture your {eventType}. Our team will be in touch with the next steps.\n\n- Aura Knot`,
     "Quotation Declined": `Hi {customerName},\n\nWe received that you've declined Quotation #{quotationNumber}.\n\nWe hope to work with you in the future. If you'd like to discuss alternative options, feel free to reach out!\n\n- Aura Knot`,
     "Photo Selection": `Hi {customerName},\n\n✓ Photo Selection Complete\n\nWe've completed the photo selection process for your {eventType}. The best shots are ready for the next phase!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
+    "Photo Selection Pending": `Hi {customerName},\n\nThis is a friendly reminder to select your photos for {eventType}.\n\nOrder #{orderNumber}\n\nPlease share your selections so we can continue with the next steps.\n\n- Aura Knot`,
     "Album Design": `Hi {customerName},\n\n✓ Album Design Complete\n\nYour album design for {eventType} is ready! Our creative team has crafted beautiful layouts for your memories.\n\nOrder #{orderNumber}\n\n- Aura Knot`,
     "Album Printing": `Hi {customerName},\n\n✓ Album Printing In Progress\n\nYour album is now being printed with premium quality. We're creating something special for your {eventType}!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
     "Video Editing": `Hi {customerName},\n\n✓ Video Editing Complete\n\nYour highlight video for {eventType} has been edited and is ready for delivery!\n\nOrder #{orderNumber}\n\n- Aura Knot`,
@@ -117,11 +121,6 @@ export default function SettingsPage() {
   const getMessageContent = (paymentType: string) => {
     return whatsappMessages[paymentType] || defaultMessages[paymentType] || "";
   };
-
-  const allTemplateKeys = Array.from(new Set([
-    ...Object.keys(defaultMessages),
-    ...Object.keys(whatsappMessages),
-  ])).sort();
 
   const colorThemes = [
     { name: "Indigo", value: "indigo" as const, color: "bg-indigo-500" },
@@ -294,21 +293,27 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* All Templates */}
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-            <h4 className="font-semibold text-[var(--foreground)] mb-3">All WhatsApp Templates</h4>
-            <div className="grid gap-3 md:grid-cols-2">
-              {allTemplateKeys.map((key) => (
-                <div key={key} className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{key}</div>
-                  <div className="mt-2 text-sm whitespace-pre-wrap text-[var(--foreground)] font-mono">
-                    {getMessageContent(key)}
-                  </div>
-                  {whatsappMessages[key] && (
-                    <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">✓ Custom</div>
-                  )}
-                </div>
-              ))}
+          {/* Category Overview */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={`rounded-lg border p-3 ${activeTab === "payments" ? "border-[var(--primary)] bg-[var(--primary)]/5" : "border-[var(--border)] bg-[var(--card)]"}`}>
+              <div className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Payments</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">{paymentTemplateKeys.length} templates</div>
+              <div className="text-xs text-[var(--muted-foreground)]">💰 Payment Messages</div>
+            </div>
+            <div className={`rounded-lg border p-3 ${activeTab === "quotations" ? "border-[var(--primary)] bg-[var(--primary)]/5" : "border-[var(--border)] bg-[var(--card)]"}`}>
+              <div className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Quotations</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">{quotationTemplateKeys.length} templates</div>
+              <div className="text-xs text-[var(--muted-foreground)]">📋 Quotation Messages</div>
+            </div>
+            <div className={`rounded-lg border p-3 ${activeTab === "workflow" ? "border-[var(--primary)] bg-[var(--primary)]/5" : "border-[var(--border)] bg-[var(--card)]"}`}>
+              <div className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Workflow</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">{workflowTemplateKeys.length} templates</div>
+              <div className="text-xs text-[var(--muted-foreground)]">🔄 Workflow Messages</div>
+            </div>
+            <div className={`rounded-lg border p-3 ${activeTab === "orders" ? "border-[var(--primary)] bg-[var(--primary)]/5" : "border-[var(--border)] bg-[var(--card)]"}`}>
+              <div className="text-xs uppercase tracking-wide text-[var(--muted-foreground)]">Orders</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--foreground)]">1 template</div>
+              <div className="text-xs text-[var(--muted-foreground)]">✅ Order Completion</div>
             </div>
           </div>
 
@@ -348,7 +353,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeTab === "payments" && paymentTypes.map((paymentType) => (
+            {activeTab === "payments" && paymentTemplateKeys.map((paymentType) => (
               <div key={paymentType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[var(--foreground)]">{paymentType}</h4>
@@ -445,7 +450,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeTab === "quotations" && ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"].map((quotationType) => (
+            {activeTab === "quotations" && quotationTemplateKeys.map((quotationType) => (
               <div key={quotationType} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[var(--foreground)]">{quotationType}</h4>
@@ -542,7 +547,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeTab === "workflow" && ["Photo Selection", "Album Design", "Album Printing", "Video Editing", "Outdoor Shoot", "Album Delivery"].map((workflowStage) => (
+            {activeTab === "workflow" && workflowTemplateKeys.map((workflowStage) => (
               <div key={workflowStage} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[var(--foreground)]">{workflowStage}</h4>

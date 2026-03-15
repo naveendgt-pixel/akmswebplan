@@ -260,7 +260,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-xl lg:hidden">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-xl lg:hidden"
+        style={{ transform: "translateZ(0)" }}
+      >
         <div className="flex items-center justify-around px-1 py-1 xs:px-2 xs:py-2">
           {navItems.slice(0, 5).map((item) => {
             const active = isActiveRoute(pathname, item.href);

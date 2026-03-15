@@ -565,7 +565,7 @@ export default function QuotationsListPage() {
                 <div className="text-xl md:text-2xl font-extrabold leading-none">{stats.total}</div>
               </div>
               <div>
-                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value of Confirmed Quotations</div>
                 <div className="text-base md:text-lg font-bold leading-none">&#8377;{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
               </div>
             </div>
@@ -602,7 +602,7 @@ export default function QuotationsListPage() {
           </div>
           <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
           <div>
-            <p className="text-sm text-white/80">Total Value</p>
+            <p className="text-sm text-white/80">Total Value of Confirmed Quotations</p>
             <p className="text-3xl font-bold">₹{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</p>
           </div>
           <div className="h-12 w-px bg-white/20 hidden sm:block"></div>

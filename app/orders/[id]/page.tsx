@@ -65,6 +65,7 @@ interface OrderItem {
 
 interface Customer {
   id: string;
+  customer_title?: string | null;
   name: string;
   phone: string;
   email: string;
@@ -539,6 +540,34 @@ Thank you for choosing Aura Knot Photography! 📸`;
       .replace(/{eventType}/g, eventType);
   };
 
+  const generateWorkflowReminderMessage = (
+    customerName: string,
+    orderNumber: string,
+    workflowStage: string,
+    eventType: string
+  ) => {
+    const whatsappMessages = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("whatsapp_messages") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+
+    const defaultReminders: Record<string, string> = {
+      "Photo Selection Pending": `Hi {customerName},\n\nThis is a friendly reminder to select your photos for {eventType}.\n\nOrder: {orderNumber}\n\nPlease share your selections so we can continue with the next steps.\n\n- Aura Knot`,
+    };
+
+    const key = `${workflowStage} Pending`;
+    const template = whatsappMessages[key] || defaultReminders[key] || `Reminder: ${workflowStage} is still pending for your order ${orderNumber}.`;
+
+    return template
+      .replace(/{customerName}/g, customerName)
+      .replace(/{orderNumber}/g, orderNumber)
+      .replace(/{workflowStage}/g, workflowStage)
+      .replace(/{eventType}/g, eventType);
+  };
+
   // Generate order completion notification message
   const generateOrderCompletionMessage = (
     customerName: string,
@@ -623,22 +652,22 @@ Thank you for choosing Aura Knot Photography! 📸`;
       }
 
       // Generate WhatsApp notification message
-      const whatsappMessage = generatePaymentMessage(
-        order.customer_name,
-        order.event_type,
-        order.event_date,
-        paymentForm.amount,
-        budgetForBalance,
-        newBalance,
-        paymentForm.payment_type
-      );
+        const whatsappMessage = generatePaymentMessage(
+          customerDisplayName || order.customer_name,
+          order.event_type,
+          order.event_date,
+          paymentForm.amount,
+          budgetForBalance,
+          newBalance,
+          paymentForm.payment_type
+        );
 
       await maybeSendPaymentAutomation(paymentForm.payment_type || "Other", whatsappMessage);
 
       // Ask user if they want to send WhatsApp notification
-      if (order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
-        sendWhatsAppNotification(order.customer_phone, whatsappMessage);
-      }
+        if (order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${customerDisplayName || order.customer_name}?`)) {
+          sendWhatsAppNotification(order.customer_phone, whatsappMessage);
+        }
 
       setShowPaymentModal(false);
       setPaymentForm({ payment_type: "", payment_method: "", amount: 0, payment_date: new Date().toISOString().split("T")[0], notes: "" });
@@ -650,6 +679,16 @@ Thank you for choosing Aura Knot Photography! 📸`;
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(amount);
   };
+
+  const formatPerson = (title?: string | null, name?: string | null) => {
+    const t = (title || "").trim();
+    const n = (name || "").trim();
+    if (!t && !n) return "";
+    if (t && n) return `${t} ${n}`;
+    return t || n;
+  };
+
+  const customerDisplayName = formatPerson(customer?.customer_title, customer?.name) || order?.customer_name || "";
 
   // Generate Order PDF
   const generateOrderPDF = () => {
@@ -702,7 +741,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
       '<div class="section"><div class="section-title">Payments</div><table><thead><tr><th>Payment #</th><th>Date</th><th>Method</th><th class="amount">Amount</th></tr></thead><tbody>' + paymentsHtml + '</tbody></table></div>' +
       '<div class="summary-grid"><div class="summary-box summary-total"><div class="summary-label">Total Amount</div><div class="summary-value">₹' + (order.total_amount || 0).toLocaleString() + '</div></div><div class="summary-box summary-paid"><div class="summary-label">Amount Paid</div><div class="summary-value" style="color: #16a34a;">₹' + totalPayments.toLocaleString() + '</div></div><div class="summary-box summary-expense"><div class="summary-label">Total Expenses</div><div class="summary-value" style="color: #dc2626;">₹' + totalExpenses.toLocaleString() + '</div></div><div class="summary-box summary-profit"><div class="summary-label">Profit/Loss</div><div class="summary-value" style="color: ' + (profit >= 0 ? "#16a34a" : "#dc2626") + ';">₹' + Math.abs(profit).toLocaleString() + '</div></div></div>' +
       '<div style="margin-top: 20px; padding: 15px; background: ' + (balanceDue > 0 ? "#fef2f2" : "#dcfce7") + '; border-radius: 8px; text-align: center;"><div style="font-size: 12px; color: #64748b;">Balance Due</div><div style="font-size: 24px; font-weight: bold; color: ' + (balanceDue > 0 ? "#dc2626" : "#16a34a") + ';">₹' + balanceDue.toLocaleString() + '</div></div>' +
-      '<div class="footer"><p>Aura Knot Photography • Generated on ' + new Date().toLocaleDateString("en-IN") + '</p></div></body></html>';
+      '<div class="footer"><p>Aura Knot Photography • Generated on ' + formatDate(new Date().toISOString()) + '</p></div></body></html>';
 
     const printWindow = window.open("", "_blank");
     if (printWindow) {
@@ -979,19 +1018,32 @@ Thank you for choosing Aura Knot Photography! 📸`;
                       try {
                         await supabase.from("orders").update({ workflow_status: jsonString }).eq("id", order.id);
                         setOrder({ ...order, workflow_status: jsonString });
-                        
-                        // Show WhatsApp prompt if stage is marked as complete
-                        if ((newStatus === "Yes" || newStatus === "Not Needed") && order.customer_phone) {
-                          const workflowMessage = generateWorkflowMessage(
-                            order.customer_name,
+
+                        if (newStatus === "No" && stage === "Photo Selection" && order.customer_phone) {
+                          const reminderMessage = generateWorkflowReminderMessage(
+                            customerDisplayName || order.customer_name,
                             order.order_number,
                             stage,
                             order.event_type
                           );
-                          
+
+                          if (confirm(`Photo Selection is marked as "No".\n\nSend a WhatsApp reminder to ${customerDisplayName || order.customer_name}?`)) {
+                            sendWhatsAppNotification(order.customer_phone, reminderMessage);
+                          }
+                        }
+
+                        // Show WhatsApp prompt if stage is marked as complete
+                        if ((newStatus === "Yes" || newStatus === "Not Needed") && order.customer_phone) {
+                          const workflowMessage = generateWorkflowMessage(
+                            customerDisplayName || order.customer_name,
+                            order.order_number,
+                            stage,
+                            order.event_type
+                          );
+
                           await maybeSendWorkflowAutomation(stage, workflowMessage);
 
-                          if (confirm(`Stage marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
+                          if (confirm(`Stage marked as complete!\n\nWould you like to send a WhatsApp notification to ${customerDisplayName || order.customer_name}?`)) {
                             sendWhatsAppNotification(order.customer_phone, workflowMessage);
                           }
                         }
@@ -1076,17 +1128,17 @@ Thank you for choosing Aura Knot Photography! 📸`;
                   })();
                   
                   if (whatsappSettings.order_completion !== false) { // Default to true if not set
-                    const completionMessage = generateOrderCompletionMessage(
-                      order.customer_name,
-                      order.order_number,
-                      order.event_type
-                    );
+                      const completionMessage = generateOrderCompletionMessage(
+                        customerDisplayName || order.customer_name,
+                        order.order_number,
+                        order.event_type
+                      );
                     
                     await maybeSendOrderCompletionAutomation(completionMessage);
 
-                    if (confirm(`Order marked as complete!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
-                      sendWhatsAppNotification(order.customer_phone, completionMessage);
-                    }
+                      if (confirm(`Order marked as complete!\n\nWould you like to send a WhatsApp notification to ${customerDisplayName || order.customer_name}?`)) {
+                        sendWhatsAppNotification(order.customer_phone, completionMessage);
+                      }
                   }
                 }
               } catch (error) {

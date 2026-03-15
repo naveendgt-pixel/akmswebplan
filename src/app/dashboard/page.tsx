@@ -20,6 +20,7 @@ interface DashboardStats {
   totalQuotations: number;
   confirmedQuotations: number;
   pendingQuotations: number;
+  confirmedQuotationValue: number;
 }
 
 interface RecentOrder {
@@ -57,6 +58,7 @@ export default function DashboardPage() {
     totalQuotations: 0,
     confirmedQuotations: 0,
     pendingQuotations: 0,
+    confirmedQuotationValue: 0,
   });
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
@@ -226,6 +228,9 @@ export default function DashboardPage() {
         const totalQuotations = periodQuotations.length;
         const confirmedQuotations = periodQuotations.filter(q => q.status === "Confirmed").length;
         const pendingQuotations = periodQuotations.filter(q => q.status === "Pending").length;
+        const confirmedQuotationValue = periodQuotations
+          .filter(q => q.status === "Confirmed")
+          .reduce((sum, q) => sum + (q.total_amount || q.grand_total || 0), 0);
 
         // WORKFLOW PROGRESS - cumulative workflow status for orders where event_end_date is in period
         const workflowStats: Record<string, { completed: number; total: number }> = {};
@@ -261,6 +266,7 @@ export default function DashboardPage() {
           totalQuotations,
           confirmedQuotations,
           pendingQuotations,
+          confirmedQuotationValue,
         });
 
         setWorkflowSummary(workflowStats);
@@ -387,7 +393,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Workflow Progress & Quotations */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         <SectionCard title="Workflow Progress" description="Completion status across all orders">
           {stats.totalOrders === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -441,6 +447,18 @@ export default function DashboardPage() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90"
           >
             View All Quotations →
+          </Link>
+        </SectionCard>
+        <SectionCard title="Total Value of Confirmed Quotations" description="Sum of approved quotations in selected period">
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <p className="text-3xl font-bold text-[var(--success)]">{formatCurrency(stats.confirmedQuotationValue)}</p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Confirmed only</p>
+          </div>
+          <Link 
+            href="/quotations"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90"
+          >
+            View Confirmed Quotations â†’
           </Link>
         </SectionCard>
       </div>

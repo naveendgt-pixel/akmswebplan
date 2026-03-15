@@ -887,29 +887,49 @@ function QuotationContent() {
       const isValidUUID = form.customerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.customerId);
       let resolvedCustomerId = isValidUUID ? form.customerId : null;
 
-      if (!resolvedCustomerId) {
-        const { data: newCustomer, error: customerError } = await supabase
-          .from("customers")
-          .insert({
-            customer_title: form.customerTitle || null,
-            name: form.customerName || null,
-            phone: form.customerPhone || null,
-            email: form.customerEmail || null,
-            referred_by: form.referredBy || null,
-            referred_by_title: form.referredByTitle || null,
-            address: form.eventVenue || null,
-            city: form.eventCity || null,
-            source: "Walk-in",
-          })
-          .select()
-          .single();
+        if (!resolvedCustomerId) {
+          const { data: newCustomer, error: customerError } = await supabase
+            .from("customers")
+            .insert({
+              customer_title: form.customerTitle || null,
+              name: form.customerName || null,
+              phone: form.customerPhone || null,
+              email: form.customerEmail || null,
+              referred_by: form.referredBy || null,
+              referred_by_title: form.referredByTitle || null,
+              address: form.eventVenue || null,
+              city: form.eventCity || null,
+              source: "Walk-in",
+            })
+            .select()
+            .single();
 
-        if (customerError) {
-          throw customerError;
+          if (customerError) {
+            throw customerError;
+          }
+
+          resolvedCustomerId = newCustomer.id;
         }
 
-        resolvedCustomerId = newCustomer.id;
-      }
+        if (resolvedCustomerId) {
+          const { error: updateCustomerError } = await supabase
+            .from("customers")
+            .update({
+              customer_title: form.customerTitle || null,
+              name: form.customerName || null,
+              phone: form.customerPhone || null,
+              email: form.customerEmail || null,
+              referred_by: form.referredBy || null,
+              referred_by_title: form.referredByTitle || null,
+              address: form.eventVenue || null,
+              city: form.eventCity || null,
+            })
+            .eq("id", resolvedCustomerId);
+
+          if (updateCustomerError) {
+            throw updateCustomerError;
+          }
+        }
 
       // Get primary photo/video service for snapshot (first one with rate > 0)
       const primaryPhoto = form.photoServices.find((ps) => ps.rate > 0) || form.photoServices[0];

@@ -235,6 +235,7 @@ export default function PaymentsPage() {
 
   // Expense form
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState({
     orderId: "",
     description: "",
@@ -472,6 +473,50 @@ export default function PaymentsPage() {
       reference: payment.reference_number || "",
       notes: payment.notes?.includes(":") ? payment.notes.split(": ")[1] : "",
     });
+  };
+
+  const handleOpenEditExpense = (expense: Expense) => {
+    setEditingExpenseId(expense.id);
+    setShowExpenseForm(true);
+    setExpenseForm({
+      orderId: expense.order_id,
+      description: expense.description,
+      amount: expense.amount,
+      category: expense.category || "Miscellaneous",
+      date: expense.expense_date || new Date().toISOString().split("T")[0],
+    });
+  };
+
+  const handleUpdateExpense = async () => {
+    if (!supabase || !editingExpenseId || !expenseForm.orderId || expenseForm.amount <= 0 || !expenseForm.description) {
+      alert("Please fill all required fields");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("expenses").update({
+        order_id: expenseForm.orderId,
+        description: expenseForm.description,
+        amount: expenseForm.amount,
+        category: expenseForm.category,
+        expense_date: expenseForm.date,
+      }).eq("id", editingExpenseId);
+
+      if (error) throw error;
+
+      alert("Expense updated successfully!");
+      setShowExpenseForm(false);
+      setEditingExpenseId(null);
+      setExpenseForm({ orderId: "", description: "", amount: 0, category: "Miscellaneous", date: new Date().toISOString().split("T")[0] });
+
+      window.location.reload();
+    } catch (err) {
+      console.error("Error updating expense:", err);
+      alert("Failed to update expense");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Add expense
@@ -730,7 +775,16 @@ export default function PaymentsPage() {
                             ₹{expense.amount.toLocaleString()}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-[var(--muted-foreground)]">
-                            {expense.expense_date}
+                            {formatDate(expense.expense_date)}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <button
+                              onClick={() => handleOpenEditExpense(expense)}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                              title="Edit expense"
+                            >
+                              ??
+                            </button>
                           </td>
                         </tr>
                       );
@@ -973,7 +1027,7 @@ export default function PaymentsPage() {
       {showExpenseForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-6 shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Add Expense</h3>
+            <h3 className="text-lg font-bold mb-4">{editingExpenseId ? "Edit Expense" : "Add Expense"}</h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Order *</label>
@@ -1023,7 +1077,7 @@ export default function PaymentsPage() {
                   </select>
                 </div>
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="text-sm font-medium">Date</label>
                 <input
                   type="date"
@@ -1035,14 +1089,14 @@ export default function PaymentsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={handleAddExpense}
+                onClick={editingExpenseId ? handleUpdateExpense : handleAddExpense}
                 disabled={saving}
                 className="flex-1 h-11 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Add Expense"}
+                {saving ? (editingExpenseId ? "Updating..." : "Saving...") : (editingExpenseId ? "Update Expense" : "Add Expense")}
               </button>
               <button
-                onClick={() => setShowExpenseForm(false)}
+                onClick={() => { setShowExpenseForm(false); setEditingExpenseId(null); }}
                 className="flex-1 h-11 rounded-xl border border-[var(--border)] text-sm font-semibold"
               >
                 Cancel

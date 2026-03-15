@@ -597,18 +597,6 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
               <div class="signature-label">Authorized Signature</div>
             </div>
             </div>
-
-            <div class="footer">
-              <div class="contact-info">
-                <p><strong>Aura Knot Photography</strong></p>
-                <p>📍 Perundurai, Erode</p>
-                <p>📞 +91 8610 100 885 | ✉️ auraknot.photo@gmail.com</p>
-              </div>
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Authorized Signature</div>
-              </div>
-            </div>
           </div> <!-- end sheet 2 -->
         </div>
       </body>

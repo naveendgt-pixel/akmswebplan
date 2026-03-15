@@ -19,6 +19,7 @@ interface Quotation {
   valid_until: string | null;
   created_at: string;
   customers: {
+    customer_title?: string | null;
     name: string;
     phone: string;
   } | null;
@@ -47,6 +48,17 @@ export default function QuotationsListPage() {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const formatCustomerName = (customer: Quotation["customers"]) => {
+    const title = (customer?.customer_title || "").trim();
+    const name = (customer?.name || "").trim();
+    if (!title && !name) return "—";
+    if (title && name) return `${title} ${name}`;
+    return title || name || "—";
+  };
+  const messageCustomerName = (customer: Quotation["customers"]) => {
+    const display = formatCustomerName(customer);
+    return display === "—" ? "" : display;
+  };
 
   // Fetch quotations from Supabase
   const fetchQuotations = async () => {
@@ -70,6 +82,7 @@ export default function QuotationsListPage() {
           valid_until,
           created_at,
           customers (
+            customer_title,
             name,
             phone
           )
@@ -81,7 +94,7 @@ export default function QuotationsListPage() {
         } else {
           // Fix: customers may be returned as an array, map to expected shape
           type SupabaseQuotationRow = Omit<Quotation, 'customers'> & {
-            customers?: Array<{ name: string; phone: string }> | { name: string; phone: string } | null;
+            customers?: Array<{ customer_title?: string | null; name: string; phone: string }> | { customer_title?: string | null; name: string; phone: string } | null;
           };
 
           const rows = (data ?? []) as SupabaseQuotationRow[];
@@ -147,7 +160,7 @@ export default function QuotationsListPage() {
     if (!settings?.[statusKey]) return;
     if (!quotation.customers?.phone) return;
     const whatsappMessage = generateQuotationMessage(
-      quotation.customers.name || "",
+      messageCustomerName(quotation.customers),
       quotation.quotation_number,
       statusKey,
       quotation.total_amount,
@@ -225,7 +238,7 @@ export default function QuotationsListPage() {
     }
     const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
     const pdfUrl = `${origin}/quotations/${quotation.id}/pdf`;
-    const message = `Hi ${quotation.customers.name || ''},\n\nYou can view and download your quotation here:\n${pdfUrl}\n\nQuotation #: ${quotation.quotation_number}\nTotal: ₹${quotation.total_amount.toLocaleString('en-IN')}`;
+    const message = `Hi ${messageCustomerName(quotation.customers)},\n\nYou can view and download your quotation here:\n${pdfUrl}\n\nQuotation #: ${quotation.quotation_number}\nTotal: ₹${quotation.total_amount.toLocaleString('en-IN')}`;
     sendWhatsAppNotification(quotation.customers.phone, message);
   };
 
@@ -365,9 +378,9 @@ export default function QuotationsListPage() {
       await maybeSendAutomationMessage(quotation, "Quotation Confirmed");
       
       // Ask user if they want to send WhatsApp notification
-      if (quotation.customers?.phone && confirm(`Booking confirmed!\n\nWould you like to send a WhatsApp confirmation to ${quotation.customers.name}?`)) {
+      if (quotation.customers?.phone && confirm(`Booking confirmed!\n\nWould you like to send a WhatsApp confirmation to ${formatCustomerName(quotation.customers)}?`)) {
         const whatsappMessage = generateQuotationMessage(
-          quotation.customers.name,
+          messageCustomerName(quotation.customers),
           quotation.quotation_number,
           "Quotation Confirmed",
           quotation.total_amount,
@@ -418,9 +431,9 @@ export default function QuotationsListPage() {
       await maybeSendAutomationMessage(selectedQuotation, "Quotation Declined");
       
       // Ask user if they want to send WhatsApp notification
-      if (selectedQuotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${selectedQuotation.customers.name}?`)) {
+      if (selectedQuotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${formatCustomerName(selectedQuotation.customers)}?`)) {
         const whatsappMessage = generateQuotationMessage(
-          selectedQuotation.customers.name,
+          messageCustomerName(selectedQuotation.customers),
           selectedQuotation.quotation_number,
           "Quotation Declined",
           selectedQuotation.total_amount,
@@ -460,9 +473,9 @@ export default function QuotationsListPage() {
       await maybeSendAutomationMessage(quotation, "Quotation Pending");
       
       // Ask user if they want to send WhatsApp notification
-      if (quotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${quotation.customers.name} with the quotation?`)) {
+      if (quotation.customers?.phone && confirm(`Would you like to send a WhatsApp message to ${formatCustomerName(quotation.customers)} with the quotation?`)) {
         const whatsappMessage = generateQuotationMessage(
-          quotation.customers.name,
+          messageCustomerName(quotation.customers),
           quotation.quotation_number,
           "Quotation Pending",
           quotation.total_amount,
@@ -526,7 +539,10 @@ export default function QuotationsListPage() {
   const filteredQuotations = quotations.filter((q) => {
     if (filter !== "All" && q.status !== filter) return false;
     if (searchId && !q.quotation_number.toLowerCase().includes(searchId.toLowerCase())) return false;
-    if (searchName && !q.customers?.name?.toLowerCase().includes(searchName.toLowerCase())) return false;
+    if (searchName) {
+      const hay = `${q.customers?.customer_title || ""} ${q.customers?.name || ""}`.toLowerCase();
+      if (!hay.includes(searchName.toLowerCase())) return false;
+    }
     return true;
   });
 
@@ -565,8 +581,8 @@ export default function QuotationsListPage() {
                 <div className="text-xl md:text-2xl font-extrabold leading-none">{stats.total}</div>
               </div>
               <div>
-                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value</div>
-                <div className="text-base md:text-lg font-bold leading-none">&#8377;{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value of Confirmed Quotations</div>
+              <div className="text-base md:text-lg font-bold leading-none">&#8377;{quotations.filter((q) => q.status === "Confirmed").reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
               </div>
             </div>
             <div className="h-10 w-px bg-[var(--border)]"></div>
@@ -602,8 +618,8 @@ export default function QuotationsListPage() {
           </div>
           <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
           <div>
-            <p className="text-sm text-white/80">Total Value</p>
-            <p className="text-3xl font-bold">₹{quotations.reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</p>
+            <p className="text-sm text-white/80">Total Value of Confirmed Quotations</p>
+            <p className="text-3xl font-bold">₹{quotations.filter((q) => q.status === "Confirmed").reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</p>
           </div>
           <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
           <div className="flex gap-6">
@@ -714,7 +730,7 @@ export default function QuotationsListPage() {
 
                   <div className="mt-3 grid gap-2 text-sm">
                     <div>
-                      <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
+                      <p className="font-medium text-[var(--foreground)]">{formatCustomerName(quotation.customers)}</p>
                       <p className="text-xs text-[var(--muted-foreground)]">{quotation.customers?.phone || ""}</p>
                     </div>
                     <div className="text-xs text-[var(--muted-foreground)]">
@@ -852,7 +868,7 @@ export default function QuotationsListPage() {
                       </td>
                       <td className="px-4 py-4">
                         <div>
-                          <p className="font-medium text-[var(--foreground)]">{quotation.customers?.name || "—"}</p>
+                          <p className="font-medium text-[var(--foreground)]">{formatCustomerName(quotation.customers)}</p>
                           <p className="text-xs text-[var(--muted-foreground)]">{quotation.customers?.phone || ""}</p>
                         </div>
                       </td>
