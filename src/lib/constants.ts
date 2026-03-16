@@ -46,9 +46,10 @@ export const packageTypes = [
 ];
 
 export const sessionTypes = [
+  "Half Session",
+  "Full Session",
   "One and Half Session",
   "Two Sessions",
-  "Not Needed",
 ];
 
 export const coverageAreas = ["Stage", "Receiving", "Ritual", "Extra"];
