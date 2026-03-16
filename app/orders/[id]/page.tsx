@@ -47,7 +47,6 @@ interface OrderData {
   status: string;
   payment_status: string;
   delivery_status: string;
-  order_completed: string;
   workflow_status: string;
   final_budget: number;
   notes: string;
@@ -1108,13 +1107,32 @@ Thank you for choosing Aura Knot Photography! 📸`;
             <p className="text-sm text-[var(--muted-foreground)]">Mark this order as complete to show profit in the dashboard</p>
           </div>
           <select
-            value={order.order_completed || "No"}
+            value={order.status === "Completed" ? "Yes" : "No"}
             onChange={async (e) => {
               if (!supabase) return;
               const newStatus = e.target.value;
               try {
-                await supabase.from("orders").update({ order_completed: newStatus }).eq("id", order.id);
-                setOrder({ ...order, order_completed: newStatus });
+                const nextStatus = newStatus === "Yes" ? "Completed" : order.status || "Confirmed";
+                const payload = { status: nextStatus };
+                const targetId = resolvedParams.id;
+                const { error, status, statusText } = await supabase
+                  .from("orders")
+                  .update(payload)
+                  .eq("id", targetId);
+                if (error) {
+                  alert(`Failed to update order completion status. (${status || "unknown"})`);
+                  return;
+                }
+                const { data: refreshed, error: refreshError } = await supabase
+                  .from("orders")
+                  .select("id, status")
+                  .eq("id", targetId)
+                  .single();
+                if (refreshError) {
+                  setOrder({ ...order, status: nextStatus });
+                  return;
+                }
+                setOrder({ ...order, status: refreshed.status });
                 
                 // Show WhatsApp notification if order is marked as completed
                 if (newStatus === "Yes" && order.customer_phone) {
@@ -1146,8 +1164,8 @@ Thank you for choosing Aura Knot Photography! 📸`;
               }
             }}
             className={`text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer appearance-none outline-none ${
-              order.order_completed === "Yes" 
-                ? "bg-[var(--success)] text-white" 
+              order.status === "Completed"
+                ? "bg-[var(--success)] text-white"
                 : "bg-[var(--danger)] text-white"
             }`}
             style={{ colorScheme: "dark" }}

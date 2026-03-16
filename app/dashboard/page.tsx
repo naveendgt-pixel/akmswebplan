@@ -179,11 +179,11 @@ export default function DashboardPage() {
         console.log("Period created orders:", totalOrders);
         console.log("Period event orders:", periodEventOrders.length);
 
-        // COMPLETED ORDERS - where order_completed = 'Yes' AND event_end_date in period
-        const completedOrders = periodEventOrders.filter(o => o.order_completed === 'Yes').length;
-
-        // PENDING ORDERS - where order_completed = 'No' AND event_end_date in period
-        const pendingOrders = periodEventOrders.filter(o => o.order_completed === 'No').length;
+        // COMPLETED ORDERS - where status = 'Completed' AND event_end_date in period
+        const completedOrders = periodEventOrders.filter(o => o.status === 'Completed').length;
+        
+        // PENDING ORDERS - non-completed orders in period
+        const pendingOrders = periodEventOrders.filter(o => o.status !== 'Completed').length;
 
         // OUTSTANDING BALANCE - sum of balance_due where event_end_date is in period AND event has already passed
         const today = new Date();
@@ -207,7 +207,7 @@ export default function DashboardPage() {
         }, 0);
 
         // MONTHLY/YEARLY REVENUE - orders with event_end_date in period (revenue for completed orders only)
-        const completedPeriodOrders = periodEventOrders.filter(o => o.order_completed === 'Yes');
+        const completedPeriodOrders = periodEventOrders.filter(o => o.status === 'Completed');
         const monthlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
         const yearlyRevenue = completedPeriodOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
@@ -458,7 +458,7 @@ export default function DashboardPage() {
             href="/quotations"
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[var(--primary)]/90"
           >
-            View Confirmed Quotations â†’
+            View Confirmed Quotations
           </Link>
         </SectionCard>
       </div>

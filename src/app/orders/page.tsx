@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -34,7 +34,7 @@ interface Customer {
   email: string | null;
 }
 
-// statusColors defined previously but not currently used in UI — removed to avoid lint warnings
+// statusColors defined previously but not currently used in UI - removed to avoid lint warnings
 
 const paymentStatusColors: Record<string, string> = {
   Pending: "bg-amber-100 text-amber-700 border-amber-200",
@@ -64,7 +64,10 @@ export default function OrdersPage() {
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert('Invalid customer phone number');
 
-    const message = `Hello ${order.customers?.[0]?.name || ''},\n\nYour order ${order.order_number} is ready.\nTotal: ₹${(order.final_budget || order.total_amount || 0).toLocaleString('en-IN')}\nEvent: ${order.event_type} on ${formatDate(order.event_date)}\n\nView: ${typeof window !== 'undefined' ? window.location.origin + '/orders/' + order.id : '/orders/' + order.id}`;
+    const totalText = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
+      order.final_budget || order.total_amount || 0
+    );
+    const message = `Hello ${order.customers?.[0]?.name || ''},\n\nYour order ${order.order_number} is ready.\nTotal: ${totalText}\nEvent: ${order.event_type} on ${formatDate(order.event_date)}\n\nView: ${typeof window !== 'undefined' ? window.location.origin + '/orders/' + order.id : '/orders/' + order.id}`;
     const encoded = encodeURIComponent(message);
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encoded}`;
     try {
@@ -89,7 +92,7 @@ export default function OrdersPage() {
         console.log("Fetching orders...");
         const { data, error } = await supabase
           .from("orders")
-          .select("*")
+          .select("*, customers(name, phone), quotations(event_type, event_date, event_city, total_amount)")
           .order("created_at", { ascending: false });
 
         console.log("Orders response:", { data, error });
@@ -98,10 +101,25 @@ export default function OrdersPage() {
           console.error("Error fetching orders:", error.message || error);
         } else {
           // Map data to include customers array format for compatibility
-          const mappedData = (data || []).map(o => ({
-            ...o,
-            customers: o.customer_name ? [{ name: o.customer_name, phone: o.customer_phone || "" }] : null
-          }));
+          const mappedData = (data || []).map((o: any) => {
+            const customerRel = Array.isArray(o.customers) ? o.customers[0] : o.customers;
+            const quotationRel = Array.isArray(o.quotations) ? o.quotations[0] : o.quotations;
+            const customer =
+              o.customer_name
+                ? { name: o.customer_name, phone: o.customer_phone || "" }
+                : customerRel
+                ? { name: customerRel.name, phone: customerRel.phone || "" }
+                : null;
+
+            return {
+              ...o,
+              customers: customer ? [customer] : null,
+              event_type: o.event_type || quotationRel?.event_type || "",
+              event_date: o.event_date || quotationRel?.event_date || null,
+              event_city: o.event_city || quotationRel?.event_city || null,
+              total_amount: o.total_amount ?? quotationRel?.total_amount ?? 0,
+            };
+          });
           console.log("Mapped orders:", mappedData);
           setOrders(mappedData);
         }
@@ -150,7 +168,7 @@ export default function OrdersPage() {
 
       {/* Info Banner */}
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 xs:p-4 text-sm text-blue-700">
-        <strong>ℹ️ How Orders Work:</strong> Orders are automatically created when a quotation is <strong>Confirmed</strong>, 
+        <strong>Info: How Orders Work:</strong> Orders are automatically created when a quotation is <strong>Confirmed</strong>, 
         or you can create one directly using the Create Order button above.
       </div>
 
@@ -189,18 +207,18 @@ export default function OrdersPage() {
       </SectionCard>
 
       {/* Orders Table */}
-      <SectionCard title="Orders" description="Track each workflow stage">
+      <SectionCard title={`Orders (${filteredOrders.length})`} description="Manage your orders">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-[var(--muted-foreground)]">Loading orders...</div>
           </div>
         ) : !supabase ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-            ⚠️ Supabase not configured. Please set up your environment variables.
+            Warning: Supabase not configured. Please set up your environment variables.
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="mb-4 text-4xl">📦</div>
+            <div className="mb-4 text-lg font-semibold text-[var(--muted-foreground)]">No orders</div>
             <p className="text-[var(--muted-foreground)]">No orders found</p>
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
               Orders are created when quotations are confirmed.
@@ -209,13 +227,13 @@ export default function OrdersPage() {
               href="/quotations"
               className="mt-4 text-sm font-medium text-[var(--primary)] hover:underline"
             >
-              Go to Quotations to confirm one →
+              Go to Quotations to confirm one
             </Link>
             <button
               onClick={() => router.push("/quotations")}
               className="mt-2 inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white"
             >
-              Create Quotation/Order →
+              Create Quotation/Order
             </button>
           </div>
         ) : (
@@ -231,43 +249,71 @@ export default function OrdersPage() {
                 }
               })();
               const completedStages = workflowStages.filter(s => workflowData[s] === "Yes" || workflowData[s] === "Not Needed").length;
-              const allCompleted = completedStages === workflowStages.length;
-              
-              return (
-                <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-                  {/* Row 1: ID, customer, actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 border-b border-[var(--border)]">
-                    <div className="flex flex-col min-w-[160px]">
-                      <Link href={`/orders/${order.id}`} className="font-semibold text-[var(--primary)] hover:underline whitespace-nowrap">{order.order_number}</Link>
-                      <div className="text-xs text-[var(--muted-foreground)] truncate">{order.customers?.[0]?.name || '—'}</div>
+              const allCompleted = completedStages === workflowStages.length;              return (
+                <div key={order.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)]">
+                  <div className="grid gap-3 px-4 py-3 md:grid-cols-[1.2fr_1.4fr_1fr_0.8fr_1.2fr_0.8fr]">
+                    <div className="flex flex-col">
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="font-mono text-sm font-semibold text-[var(--primary)] hover:underline"
+                      >
+                        {order.order_number}
+                      </Link>
+                      <span className="text-xs text-[var(--muted-foreground)]">Order ID</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-[var(--foreground)]">{order.customers?.[0]?.name || "—"}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{order.customers?.[0]?.phone || ""}</span>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <span className="text-sm text-[var(--foreground)]">{order.event_type || "—"}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {formatDate(order.event_date)}
+                        {order.event_city && ` • ${order.event_city}`}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold text-[var(--foreground)]">
+                        {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
+                          order.final_budget || order.total_amount || 0
+                        )}
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)]">Amount</span>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className={`inline-flex w-fit rounded-full border px-2.5 py-0.5 text-xs font-medium ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>
+                        {order.payment_status}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-full min-w-[120px] bg-[var(--muted)] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`}
+                            style={{ width: `${(completedStages / workflowStages.length) * 100}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-[var(--muted-foreground)] whitespace-nowrap">
+                          {completedStages}/{workflowStages.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 md:justify-end">
                       <button
                         onClick={() => sendOrderWhatsApp(order)}
-                        className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
+                        className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
                       >
                         Send
                       </button>
                       <Link
                         href={`/orders/${order.id}`}
-                        className="text-xs px-2 py-1 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors whitespace-nowrap"
+                        className="text-xs px-3 py-2 rounded-md bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors"
                       >
                         View
                       </Link>
-                    </div>
-                  </div>
-
-                  {/* Row 2: event, amount, status, progress */}
-                  <div className="flex flex-wrap items-center gap-3 px-3 py-2">
-                    <div className="text-sm text-[var(--foreground)] whitespace-nowrap">{order.event_type} • {formatDate(order.event_date)}</div>
-                    <div className="text-sm font-bold text-[var(--primary)] whitespace-nowrap">₹{(order.final_budget || order.total_amount || 0).toLocaleString()}</div>
-                    <div className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${paymentStatusColors[order.payment_status] || paymentStatusColors.Pending}`}>{order.payment_status}</div>
-
-                    <div className="flex items-center gap-2 min-w-[120px]">
-                      <div className="h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${allCompleted ? "bg-[var(--success)]" : "bg-[var(--primary)]"}`} style={{ width: `${(completedStages / workflowStages.length) * 100}%` }} />
-                      </div>
-                      <div className="text-xs text-[var(--muted-foreground)] whitespace-nowrap">{completedStages}/{workflowStages.length}</div>
                     </div>
                   </div>
                 </div>
@@ -299,10 +345,14 @@ export default function OrdersPage() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Total Value</p>
           <p className="text-2xl font-bold text-[var(--foreground)]">
-            ₹{orders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toLocaleString()}
+            {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
+              orders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
+            )}
           </p>
         </div>
       </div>
     </div>
   );
 }
+
+

@@ -48,6 +48,8 @@ export default function QuotationsListPage() {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [sortKey, setSortKey] = useState<"quotation_number" | "customer" | "event" | "amount" | "status" | "valid_until" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const formatCustomerName = (customer: Quotation["customers"]) => {
     const title = (customer?.customer_title || "").trim();
     const name = (customer?.name || "").trim();
@@ -546,6 +548,46 @@ export default function QuotationsListPage() {
     return true;
   });
 
+  const sortedQuotations = (() => {
+    if (!sortKey) return filteredQuotations;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filteredQuotations].sort((a, b) => {
+      if (sortKey === "quotation_number") {
+        return (a.quotation_number || "").localeCompare(b.quotation_number || "") * dir;
+      }
+      if (sortKey === "customer") {
+        const aName = `${a.customers?.customer_title || ""} ${a.customers?.name || ""}`.trim();
+        const bName = `${b.customers?.customer_title || ""} ${b.customers?.name || ""}`.trim();
+        return aName.localeCompare(bName) * dir;
+      }
+      if (sortKey === "event") {
+        return (a.event_type || "").localeCompare(b.event_type || "") * dir;
+      }
+      if (sortKey === "amount") {
+        return ((a.total_amount || 0) - (b.total_amount || 0)) * dir;
+      }
+      if (sortKey === "status") {
+        return (a.status || "").localeCompare(b.status || "") * dir;
+      }
+      if (sortKey === "valid_until") {
+        const aDate = a.valid_until ? new Date(a.valid_until).getTime() : 0;
+        const bDate = b.valid_until ? new Date(b.valid_until).getTime() : 0;
+        return (aDate - bDate) * dir;
+      }
+      return 0;
+    });
+  })();
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (!key) return;
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   // Stats
   const stats = {
     total: quotations.length,
@@ -709,7 +751,7 @@ export default function QuotationsListPage() {
         ) : (
           <>
             <div className="grid gap-4 lg:hidden">
-              {filteredQuotations.map((quotation) => (
+              {sortedQuotations.map((quotation) => (
                 <div key={quotation.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -846,17 +888,47 @@ export default function QuotationsListPage() {
               <table className="w-full min-w-[700px]">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Quotation ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Event</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Amount</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Valid Until</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Quotation ID
+                      <button type="button" onClick={() => toggleSort("quotation_number")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "quotation_number" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Customer
+                      <button type="button" onClick={() => toggleSort("customer")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "customer" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Event
+                      <button type="button" onClick={() => toggleSort("event")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "event" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Amount
+                      <button type="button" onClick={() => toggleSort("amount")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "amount" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Status
+                      <button type="button" onClick={() => toggleSort("status")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "status" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Valid Until
+                      <button type="button" onClick={() => toggleSort("valid_until")} className="ml-2 text-[11px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--primary)]">
+                        {sortKey === "valid_until" ? (sortDir === "asc" ? "^" : "v") : "^v"}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {filteredQuotations.map((quotation) => (
+                  {sortedQuotations.map((quotation) => (
                     <tr key={quotation.id} className="hover:bg-[var(--secondary)]/50 transition-colors">
                       <td className="px-4 py-4">
                         <Link

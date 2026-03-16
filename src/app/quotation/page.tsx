@@ -107,6 +107,7 @@ interface QuotationForm {
   createOrderOnly: boolean;
 }
 
+
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const createPhotoService = (): PhotoService => ({
@@ -605,6 +606,7 @@ function QuotationContent() {
   const calculatedDiscountAmount = Math.round((subtotal * form.discountPercent) / 100);
   const discountAmount = discountAmountManual !== null ? discountAmountManual : calculatedDiscountAmount;
   const totalAmount = subtotal - discountAmount;
+
 
   // Handle form changes
   const handleChange = (field: keyof QuotationForm, value: string | number | boolean | string[]) => {
@@ -1111,6 +1113,30 @@ function QuotationContent() {
 
         quotationId = editQuotationId;
 
+        // Keep linked order snapshot in sync with latest customer data
+        const { data: quotationLink, error: quotationLinkError } = await supabase
+          .from("quotations")
+          .select("order_id")
+          .eq("id", editQuotationId)
+          .single();
+
+        if (quotationLinkError) {
+          console.error("Order link fetch error:", quotationLinkError);
+        } else if (quotationLink?.order_id) {
+          const { error: orderSyncError } = await supabase
+            .from("orders")
+            .update({
+              customer_name: form.customerName,
+              customer_phone: form.customerPhone,
+              customer_email: form.customerEmail || null,
+            })
+            .eq("id", quotationLink.order_id);
+
+          if (orderSyncError) {
+            console.error("Order sync error:", orderSyncError);
+          }
+        }
+
         // Delete existing items before re-creating
         await supabase.from("quotation_items").delete().eq("quotation_id", quotationId);
 
@@ -1535,6 +1561,7 @@ function QuotationContent() {
           </div>
         </div>
       </SectionCard>
+
 
       {/* Quotation Created Date */}
       <SectionCard title="Quotation Created Date" description="Edit the date when this quotation was created">
