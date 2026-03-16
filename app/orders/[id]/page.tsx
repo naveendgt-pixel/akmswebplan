@@ -1115,7 +1115,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
                 const nextStatus = newStatus === "Yes" ? "Completed" : order.status || "Confirmed";
                 const payload = { status: nextStatus };
                 const targetId = resolvedParams.id;
-                const { error, status, statusText } = await supabase
+                const { error, status } = await supabase
                   .from("orders")
                   .update(payload)
                   .eq("id", targetId);

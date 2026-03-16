@@ -101,7 +101,27 @@ export default function OrdersPage() {
           console.error("Error fetching orders:", error.message || error);
         } else {
           // Map data to include customers array format for compatibility
-          const mappedData = (data || []).map((o: any) => {
+          type SupabaseOrderRow = {
+            id: string;
+            order_number: string;
+            final_budget?: number | null;
+            status?: string | null;
+            payment_status?: string | null;
+            delivery_status?: string | null;
+            workflow_status?: string | null;
+            created_at?: string | null;
+            quotation_id?: string | null;
+            customer_name?: string | null;
+            customer_phone?: string | null;
+            customers?: Array<{ name: string; phone: string }> | { name: string; phone: string } | null;
+            quotations?: Array<{ event_type?: string | null; event_date?: string | null; event_city?: string | null; total_amount?: number | null }> | { event_type?: string | null; event_date?: string | null; event_city?: string | null; total_amount?: number | null } | null;
+            event_type?: string | null;
+            event_date?: string | null;
+            event_city?: string | null;
+            total_amount?: number | null;
+            [key: string]: unknown;
+          };
+          const mappedData: Order[] = (data || []).map((o: SupabaseOrderRow) => {
             const customerRel = Array.isArray(o.customers) ? o.customers[0] : o.customers;
             const quotationRel = Array.isArray(o.quotations) ? o.quotations[0] : o.quotations;
             const customer =
@@ -112,12 +132,20 @@ export default function OrdersPage() {
                 : null;
 
             return {
-              ...o,
-              customers: customer ? [customer] : null,
+              id: o.id,
+              order_number: o.order_number,
               event_type: o.event_type || quotationRel?.event_type || "",
               event_date: o.event_date || quotationRel?.event_date || null,
               event_city: o.event_city || quotationRel?.event_city || null,
               total_amount: o.total_amount ?? quotationRel?.total_amount ?? 0,
+              final_budget: o.final_budget ?? null,
+              status: o.status || "",
+              payment_status: o.payment_status || "Pending",
+              delivery_status: o.delivery_status || "",
+              workflow_status: o.workflow_status || null,
+              created_at: o.created_at || "",
+              quotation_id: o.quotation_id || null,
+              customers: customer ? [customer] : null,
             };
           });
           console.log("Mapped orders:", mappedData);
