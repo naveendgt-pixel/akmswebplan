@@ -308,6 +308,18 @@ function QuotationContent() {
         .select("*")
         .eq("quotation_id", quotationId);
 
+      const parseServiceDetails = (desc: string) => {
+        const raw = desc || "";
+        const typeMatch = raw.match(/-\s*([^(]+)\(/);
+        const sessionMatch = raw.match(/\(([^)]+)\)/);
+        const areaMatch = raw.match(/-\s*([^-\n]+)$/);
+        return {
+          type: typeMatch ? typeMatch[1].trim() : "",
+          session: sessionMatch ? sessionMatch[1].trim() : "",
+          area: areaMatch ? areaMatch[1].trim() : "",
+        };
+      };
+
       // Parse items into services
       const photoServices: PhotoService[] = [];
       const videoServices: VideoService[] = [];
@@ -315,21 +327,23 @@ function QuotationContent() {
 
       (items || []).forEach((item) => {
         if (item.category === "Photography") {
+          const parsed = parseServiceDetails(item.description || "");
           photoServices.push({
             id: generateId(),
-            type: item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : "",
-            area: "",
+            type: parsed.type || (item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : ""),
+            area: parsed.area || "",
             cameras: item.quantity || 1,
-            session: "",
+            session: parsed.session || "",
             rate: item.total_price || 0,
           });
         } else if (item.category === "Videography") {
+          const parsed = parseServiceDetails(item.description || "");
           videoServices.push({
             id: generateId(),
-            type: item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : "",
-            area: "",
+            type: parsed.type || (item.description?.includes("Traditional") ? "Traditional" : item.description?.includes("Candid") ? "Candid" : ""),
+            area: parsed.area || "",
             cameras: item.quantity || 1,
-            session: "",
+            session: parsed.session || "",
             rate: item.total_price || 0,
           });
         } else if (item.category === "Additional Services" || item.category === "Additional") {
@@ -369,6 +383,7 @@ function QuotationContent() {
         videoServices[0]?.session ||
         additionalServicesArr[0]?.session ||
         "";
+      const preferredSession = quotation.session || defaultSession;
 
       // Set form with loaded data
       setForm({
@@ -385,7 +400,7 @@ function QuotationContent() {
         eventVenue: quotation.event_venue || "",
         eventCity: quotation.event_city || "",
         packageType: quotation.package_type || "",
-        session: defaultSession,
+        session: preferredSession,
         softCopyOptions: (quotation.soft_copy_options && Array.isArray(quotation.soft_copy_options) ? quotation.soft_copy_options : (quotation.soft_copy_option ? [quotation.soft_copy_option] : [])),
         softCopyCustom: quotation.soft_copy_custom || "",
         photoServices: photoServices.length > 0 ? photoServices : [createPhotoService()],
@@ -428,6 +443,8 @@ function QuotationContent() {
         if (Math.abs(quotation.discount_amount - calculated) > 1) {
           setDiscountAmountManual(quotation.discount_amount);
         }
+      } else if (quotation.discount_amount && !quotation.discount_percent) {
+        setDiscountAmountManual(quotation.discount_amount);
       }
 
     } catch (error) {
@@ -1044,7 +1061,7 @@ function QuotationContent() {
             orderItems.push({
               order_id: order.id,
               category: "Photography",
-              description: `Photography ${index + 1} - ${ps.type || "Standard"} (${ps.session || "Full Session"}) - ${ps.area || "All Areas"}`,
+              description: `Photography ${index + 1} - ${ps.type || "Standard"} (${ps.session || "One and Half Session"}) - ${ps.area || "All Areas"}`,
               quantity: ps.cameras,
               unit_price: ps.rate,
               total_price: ps.rate,
@@ -1058,7 +1075,7 @@ function QuotationContent() {
             orderItems.push({
               order_id: order.id,
               category: "Videography",
-              description: `Videography ${index + 1} - ${vs.type || "Standard"} (${vs.session || "Full Session"}) - ${vs.area || "All Areas"}`,
+              description: `Videography ${index + 1} - ${vs.type || "Standard"} (${vs.session || "One and Half Session"}) - ${vs.area || "All Areas"}`,
               quantity: vs.cameras,
               unit_price: vs.rate,
               total_price: vs.rate,
@@ -1257,7 +1274,7 @@ function QuotationContent() {
           items.push({
             quotation_id: quotationId,
             category: "Photography",
-            description: `Photography ${index + 1} - ${ps.type || "Standard"} (${ps.session || "Full Session"}) - ${ps.area || "All Areas"}`,
+            description: `Photography ${index + 1} - ${ps.type || "Standard"} (${ps.session || "One and Half Session"}) - ${ps.area || "All Areas"}`,
             quantity: ps.cameras,
             unit_price: ps.rate,
             total_price: ps.rate,
@@ -1271,7 +1288,7 @@ function QuotationContent() {
           items.push({
             quotation_id: quotationId,
             category: "Videography",
-            description: `Videography ${index + 1} - ${vs.type || "Standard"} (${vs.session || "Full Session"}) - ${vs.area || "All Areas"}`,
+            description: `Videography ${index + 1} - ${vs.type || "Standard"} (${vs.session || "One and Half Session"}) - ${vs.area || "All Areas"}`,
             quantity: vs.cameras,
             unit_price: vs.rate,
             total_price: vs.rate,
@@ -1647,6 +1664,16 @@ function QuotationContent() {
             </select>
           </div>
         </div>
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--secondary)] disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </SectionCard>
 
 
@@ -1891,10 +1918,10 @@ function QuotationContent() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-[var(--muted-foreground)]">Service Type</label>
-                    {as.service === "Other" ? (
-                      <input
-                        type="text"
-                        placeholder="Enter service name"
+                      {as.service === "Others" || as.service === "Other" ? (
+                        <input
+                          type="text"
+                          placeholder="Enter service name"
                         className={inputClass}
                         value={as.remarks.length > 0 && as.remarks !== "Additional notes..." ? as.remarks : ""}
                         onChange={(e) => updateAdditionalService(as.id, "remarks", e.target.value)}

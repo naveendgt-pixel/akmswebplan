@@ -156,7 +156,15 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
 
   const formatDescription = (desc?: string) => {
     if (!desc) return "";
-    let d = desc.trim();
+    const normalizeSession = (value: string) => {
+      return value
+        .replace(/half\s*&\s*full\s*session/gi, "One and Half Session")
+        .replace(/half\s*and\s*full\s*session/gi, "One and Half Session")
+        .replace(/half\s*session/gi, "One and Half Session")
+        .replace(/full\s*session/gi, "One and Half Session");
+    };
+
+    let d = normalizeSession(desc.trim());
 
     d = d
       .replace(/\s*\((Complimentary|Complementary)(?:[^)]*)\)/gi, "")
@@ -173,7 +181,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       const sessionMatch = firstPart.match(/(.+?)\s*\((.+)\)/);
       if (sessionMatch) {
         const type = sessionMatch[1].trim();
-        const session = sessionMatch[2].trim();
+        const session = normalizeSession(sessionMatch[2].trim());
         const base = `${type} ${m[1]} / (${session})`;
         if (/traditional/i.test(type) && areaPart) {
           return `${base} - ${areaPart}`;

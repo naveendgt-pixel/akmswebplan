@@ -14,6 +14,7 @@ interface Quotation {
   event_date: string | null;
   event_city: string | null;
   total_amount: number;
+  subtotal?: number | null;
   status: string;
   order_id: string | null;
   valid_until: string | null;
@@ -78,6 +79,7 @@ export default function QuotationsListPage() {
           event_type,
           event_date,
           event_city,
+          subtotal,
           total_amount,
           status,
           order_id,
@@ -105,9 +107,10 @@ export default function QuotationsListPage() {
               id: q.id,
               quotation_number: q.quotation_number,
               event_type: q.event_type,
-              event_date: q.event_date ?? null,
-              event_city: q.event_city ?? null,
-              total_amount: q.total_amount ?? 0,
+            event_date: q.event_date ?? null,
+            event_city: q.event_city ?? null,
+            subtotal: q.subtotal ?? null,
+            total_amount: q.total_amount ?? 0,
               status: q.status ?? '',
               order_id: q.order_id ?? null,
               valid_until: q.valid_until ?? null,
@@ -259,6 +262,7 @@ export default function QuotationsListPage() {
         .eq("status", "Draft");
       
       if (updateError && !updateError.message.includes("0 rows")) {
+        console.error("Confirm quotation update status error:", updateError);
         throw updateError;
       }
       
@@ -269,14 +273,21 @@ export default function QuotationsListPage() {
         .eq("id", quotation.id)
         .single();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error("Confirm quotation fetch error:", fetchError);
+        throw fetchError;
+      }
       
       // Get customer data
-      const { data: customerData } = await supabase
+      const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("*")
         .eq("id", quotationData.customer_id)
         .single();
+      if (customerError) {
+        console.error("Confirm customer fetch error:", customerError);
+        throw customerError;
+      }
       
       // Get quotation items
       const { data: quotationItems } = await supabase
@@ -349,7 +360,10 @@ export default function QuotationsListPage() {
         .select()
         .single();
       
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error("Confirm create order error:", orderError);
+        throw orderError;
+      }
       
       // Copy quotation items to order items
       if (quotationItems && quotationItems.length > 0) {
@@ -364,11 +378,15 @@ export default function QuotationsListPage() {
           total_price: item.total_price,
         }));
         
-        await supabase.from("order_items").insert(orderItems);
+        const { error: orderItemsError } = await supabase.from("order_items").insert(orderItems);
+        if (orderItemsError) {
+          console.error("Confirm order items insert error:", orderItemsError);
+          throw orderItemsError;
+        }
       }
       
       // Update quotation with order link and confirmed status
-      await supabase
+      const { error: quotationUpdateError } = await supabase
         .from("quotations")
         .update({
           status: "Confirmed",
@@ -376,6 +394,10 @@ export default function QuotationsListPage() {
           confirmed_at: new Date().toISOString(),
         })
         .eq("id", quotation.id);
+      if (quotationUpdateError) {
+        console.error("Confirm quotation final update error:", quotationUpdateError);
+        throw quotationUpdateError;
+      }
 
       await maybeSendAutomationMessage(quotation, "Quotation Confirmed");
       
@@ -398,6 +420,9 @@ export default function QuotationsListPage() {
       
     } catch (error) {
       console.error("Error confirming quotation:", error);
+      try {
+        console.error("Confirm quotation raw error:", JSON.stringify(error));
+      } catch {}
       alert("Failed to confirm quotation. Please try again.");
     } finally {
       setConfirmingId(null);
@@ -596,6 +621,19 @@ export default function QuotationsListPage() {
     confirmed: quotations.filter((q) => q.status === "Confirmed").length,
     declined: quotations.filter((q) => q.status === "Declined").length,
   };
+  const confirmedSubtotal = quotations
+    .filter((q) => q.status === "Confirmed")
+    .reduce((sum, q) => {
+      const subtotal = q.subtotal || 0;
+      const total = q.total_amount || 0;
+      return sum + (subtotal > 0 ? subtotal : total);
+    }, 0);
+  const confirmedTotal = quotations
+    .filter((q) => q.status === "Confirmed")
+    .reduce((sum, q) => sum + (q.total_amount || 0), 0);
+  const confirmedDiscountPercent = confirmedSubtotal > 0 && confirmedSubtotal >= confirmedTotal
+    ? Math.round(((confirmedSubtotal - confirmedTotal) / confirmedSubtotal) * 100)
+    : 0;
 
   const inputClass = "h-10 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
@@ -623,8 +661,13 @@ export default function QuotationsListPage() {
                 <div className="text-xl md:text-2xl font-extrabold leading-none">{stats.total}</div>
               </div>
               <div>
-                <div className="text-[11px] text-[var(--muted-foreground)]">Total Value of Confirmed Quotations</div>
-              <div className="text-base md:text-lg font-bold leading-none">&#8377;{quotations.filter((q) => q.status === "Confirmed").reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Confirmed Subtotal</div>
+                <div className="text-base md:text-lg font-bold leading-none">&#8377;{confirmedSubtotal.toLocaleString("en-IN")}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-[var(--muted-foreground)]">Final Total</div>
+                <div className="text-sm font-semibold leading-none">&#8377;{confirmedTotal.toLocaleString("en-IN")}</div>
+                <div className="text-[11px] text-[var(--warning)] font-semibold mt-1">Discount {confirmedDiscountPercent}%</div>
               </div>
             </div>
             <div className="h-10 w-px bg-[var(--border)]"></div>
@@ -652,35 +695,36 @@ export default function QuotationsListPage() {
       </div>
 
       {/* Stats Overview - Clear Total Display (mobile only) */}
-      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-4 xs:p-6 text-white md:hidden">
-        <div className="flex flex-col xs:flex-row flex-wrap items-center justify-between gap-2 xs:gap-4">
+      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white md:hidden">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-white/80">Total Quotations</p>
-            <p className="text-4xl font-bold">{stats.total}</p>
+            <p className="text-[11px] text-white/80 uppercase tracking-wide">Total Quotations</p>
+            <p className="text-3xl font-bold leading-tight">{stats.total}</p>
           </div>
-          <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
-          <div>
-            <p className="text-sm text-white/80">Total Value of Confirmed Quotations</p>
-            <p className="text-3xl font-bold">₹{quotations.filter((q) => q.status === "Confirmed").reduce((sum, q) => sum + (q.total_amount || 0), 0).toLocaleString("en-IN")}</p>
+          <div className="text-right">
+            <p className="text-[11px] text-white/80 uppercase tracking-wide">Confirmed Subtotal</p>
+            <p className="text-2xl font-bold leading-tight">₹{confirmedSubtotal.toLocaleString("en-IN")}</p>
+            <p className="text-[11px] text-white/80 uppercase tracking-wide mt-2">Final Total</p>
+            <p className="text-lg font-bold leading-tight">₹{confirmedTotal.toLocaleString("en-IN")}</p>
+            <p className="text-[11px] text-white/80">Discount {confirmedDiscountPercent}%</p>
           </div>
-          <div className="h-12 w-px bg-white/20 hidden sm:block"></div>
-          <div className="flex gap-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.draft}</p>
-              <p className="text-xs text-white/80">Draft</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.pending}</p>
-              <p className="text-xs text-white/80">Pending</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.confirmed}</p>
-              <p className="text-xs text-white/80">Confirmed</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats.declined}</p>
-              <p className="text-xs text-white/80">Declined</p>
-            </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-center">
+            <p className="text-lg font-bold">{stats.draft}</p>
+            <p className="text-[11px] text-white/80">Draft</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-center">
+            <p className="text-lg font-bold">{stats.pending}</p>
+            <p className="text-[11px] text-white/80">Pending</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-center">
+            <p className="text-lg font-bold">{stats.confirmed}</p>
+            <p className="text-[11px] text-white/80">Confirmed</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2 text-center">
+            <p className="text-lg font-bold">{stats.declined}</p>
+            <p className="text-[11px] text-white/80">Declined</p>
           </div>
         </div>
       </div>

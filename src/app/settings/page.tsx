@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import SectionCard from "@/components/SectionCard";
 import { useTheme } from "@/lib/ThemeContext";
 import { paymentTypes } from "@/lib/constants";
+import { supabase } from "@/lib/supabaseClient";
 // import PushSubscribe from "@/components/PushSubscribe";
 
 export default function SettingsPage() {
@@ -17,6 +19,24 @@ export default function SettingsPage() {
   const [editingType, setEditingType] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"payments" | "quotations" | "workflow" | "orders">("payments");
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [lastBackupAt, setLastBackupAt] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("last_backup_at") || "";
+  });
+  const [backupTables, setBackupTables] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("backup_tables") || "";
+  });
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("brand_logo_url") || "";
+  });
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   const quotationAutomationKeys = ["Quotation Created", "Quotation Pending", "Quotation Confirmed", "Quotation Declined"];
   const paymentAutomationKeys = [...paymentTypes, "Other"];
@@ -131,6 +151,229 @@ export default function SettingsPage() {
     { name: "Amber", value: "amber" as const, color: "bg-amber-500" },
   ];
 
+  const parseTableList = (value: string) => {
+    return value
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  };
+
+  const defaultTables = [
+    "customers",
+    "quotations",
+    "quotation_items",
+    "orders",
+    "order_items",
+    "payments",
+    "expenses",
+  ] as const;
+
+  const fetchTableNames = async () => {
+    const extra = parseTableList(backupTables);
+    try {
+      if (!supabase) throw new Error("Supabase not configured");
+      const { data, error } = await supabase.schema("information_schema").from("tables").select("table_name").eq("table_schema", "public");
+      if (error) throw error;
+      const names = (data || []).map((row: { table_name?: string }) => row.table_name).filter(Boolean) as string[];
+      const merged = Array.from(new Set([...names, ...defaultTables, ...extra]));
+      return merged;
+    } catch {
+      return Array.from(new Set([...defaultTables, ...extra]));
+    }
+  };
+
+  const toCsv = (rows: Record<string, unknown>[]) => {
+    if (rows.length === 0) return "";
+    const headers = Array.from(
+      new Set(rows.flatMap((row) => Object.keys(row)))
+    );
+    const escape = (value: unknown) => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
+    const lines = [
+      headers.join(","),
+      ...rows.map((row) => headers.map((h) => escape(row[h])).join(",")),
+    ];
+    return lines.join("\n");
+  };
+
+  const handleBackup = async () => {
+    if (!supabase) {
+      alert("Supabase is not configured.");
+      return;
+    }
+    setBackupLoading(true);
+    setBackupError(null);
+    try {
+      const client = supabase;
+      const tables = await fetchTableNames();
+      const results = await Promise.all(
+        tables.map(async (table) => {
+          const { data, error } = await client.from(table).select("*");
+          if (error) throw new Error(`${table}: ${error.message}`);
+          return [table, data || []] as const;
+        })
+      );
+
+      const backup = {
+        exported_at: new Date().toISOString(),
+        tables: Object.fromEntries(results),
+      };
+
+      const filename = `akms_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      const ts = new Date().toISOString();
+      setLastBackupAt(ts);
+      localStorage.setItem("last_backup_at", ts);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Backup failed";
+      setBackupError(message);
+      alert(message);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleBackupCsv = async () => {
+    if (!supabase) {
+      alert("Supabase is not configured.");
+      return;
+    }
+    setBackupLoading(true);
+    setBackupError(null);
+    try {
+      const client = supabase;
+      const tables = await fetchTableNames();
+      const dateTag = new Date().toISOString().slice(0, 10);
+      for (const table of tables) {
+        const { data, error } = await client.from(table).select("*");
+        if (error) throw new Error(`${table}: ${error.message}`);
+        const csv = toCsv((data || []) as Record<string, unknown>[]);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${table}_${dateTag}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      const ts = new Date().toISOString();
+      setLastBackupAt(ts);
+      localStorage.setItem("last_backup_at", ts);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "CSV export failed";
+      setBackupError(message);
+      alert(message);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleRestore = async (file?: File | null) => {
+    if (!supabase) {
+      alert("Supabase is not configured.");
+      return;
+    }
+    if (!file) {
+      alert("Please choose a backup file.");
+      return;
+    }
+    setRestoreLoading(true);
+    setRestoreError(null);
+    try {
+      const client = supabase;
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { tables?: Record<string, unknown[]> };
+      const tables = parsed?.tables || {};
+      for (const [table, rows] of Object.entries(tables)) {
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+        const hasId = rows.every((r) => typeof r === "object" && r !== null && "id" in (r as Record<string, unknown>));
+        if (hasId) {
+          const { error } = await client.from(table).upsert(rows);
+          if (error) throw new Error(`${table}: ${error.message}`);
+        } else {
+          const { error } = await client.from(table).insert(rows);
+          if (error) throw new Error(`${table}: ${error.message}`);
+        }
+      }
+      alert("Restore completed.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Restore failed";
+      setRestoreError(message);
+      alert(message);
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
+  const validateLogo = (file: File) => {
+    const isSvg = file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg");
+    if (isSvg) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        resolve(img.width === 512 && img.height === 512);
+      };
+      img.onerror = () => resolve(false);
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleLogoUpload = async (file?: File | null) => {
+    if (!supabase) {
+      alert("Supabase is not configured.");
+      return;
+    }
+    if (!file) return;
+    setLogoLoading(true);
+    setLogoError(null);
+    try {
+      const client = supabase;
+      const ok = await validateLogo(file);
+      if (!ok) {
+        setLogoLoading(false);
+        alert("Logo must be 512 × 512 px (SVG allowed).");
+        return;
+      }
+      const ext = file.name.split(".").pop() || "png";
+      const path = `logo_${Date.now()}.${ext}`;
+      const { error: uploadError } = await client.storage.from("branding").upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = client.storage.from("branding").getPublicUrl(path);
+      const url = data.publicUrl;
+      setLogoUrl(url);
+      localStorage.setItem("brand_logo_url", url);
+      window.dispatchEvent(new Event("brand-logo-updated"));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Logo upload failed";
+      setLogoError(message);
+      alert(message);
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
+  const handleLogoClear = () => {
+    setLogoUrl("");
+    localStorage.removeItem("brand_logo_url");
+    window.dispatchEvent(new Event("brand-logo-updated"));
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Page Header */}
@@ -200,6 +443,43 @@ export default function SettingsPage() {
             <p className="text-xs text-[var(--muted-foreground)] mt-2">
               Current: <span className="font-medium text-[var(--primary)] capitalize">{colorTheme}</span>
             </p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Brand Logo" description="Upload your logo">
+        <div className="grid gap-4 md:grid-cols-[220px_1fr] items-start">
+          <div className="h-44 w-full rounded-2xl border-2 border-dashed border-[var(--border)] bg-[var(--secondary)]/30 flex items-center justify-center text-[var(--muted-foreground)] text-sm">
+            {logoUrl ? (
+              <Image src={logoUrl} alt="Brand logo" width={160} height={160} className="object-contain" />
+            ) : (
+              "Logo Preview"
+            )}
+          </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-[var(--foreground)]">Upload Logo</label>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.svg"
+                onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                className="text-sm"
+              />
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)]">
+              Required size: <span className="font-medium">512 × 512 px</span> (square). Allowed formats: <span className="font-medium">PNG, JPG, SVG</span>.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleLogoClear}
+                disabled={!logoUrl}
+                className="h-9 px-3 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--muted-foreground)] hover:bg-[var(--secondary)] disabled:opacity-50"
+              >
+                Remove Logo
+              </button>
+              {logoLoading && <span className="text-xs text-[var(--muted-foreground)]">Uploading...</span>}
+              {logoError && <span className="text-xs text-red-600">{logoError}</span>}
+            </div>
           </div>
         </div>
       </SectionCard>
@@ -702,6 +982,84 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Data Backup" description="Manual export for safe keeping">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Download a JSON backup of customers, quotations, orders, payments, and expenses.
+          </p>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-[var(--muted-foreground)]">Include Additional Tables (comma separated)</label>
+            <input
+              value={backupTables}
+              onChange={(e) => {
+                const next = e.target.value;
+                setBackupTables(next);
+                localStorage.setItem("backup_tables", next);
+              }}
+              className="h-10 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm"
+              placeholder="e.g. vendors, tasks, invoices"
+            />
+            <p className="text-xs text-[var(--muted-foreground)]">We try to auto-detect all public tables. Add any custom names here to ensure they are included.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleBackup}
+              disabled={backupLoading}
+              className="h-10 px-4 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[var(--primary)]/90 disabled:opacity-60"
+            >
+              {backupLoading ? "Preparing Backup..." : "Download Backup"}
+            </button>
+            <button
+              onClick={handleBackupCsv}
+              disabled={backupLoading}
+              className="h-10 px-4 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--secondary)] disabled:opacity-60"
+            >
+              {backupLoading ? "Preparing CSV..." : "Download CSV"}
+            </button>
+            {lastBackupAt && (
+              <span className="text-xs text-[var(--muted-foreground)]">
+                Last backup: {new Date(lastBackupAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+          {backupError && (
+            <p className="text-xs text-red-600">Backup failed: {backupError}</p>
+          )}
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Note: Backup uses your current Supabase access. Make sure read access is enabled.
+          </p>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Data Restore" description="Import JSON backup">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Restore from a JSON backup file. Rows with an <code className="text-xs">id</code> will be upserted, others will be inserted.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept="application/json"
+              onChange={(e) => handleRestore(e.target.files?.[0])}
+              className="text-sm"
+            />
+            <button
+              onClick={() => handleRestore(null)}
+              disabled={restoreLoading}
+              className="h-10 px-4 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--muted-foreground)] hover:bg-[var(--secondary)] disabled:opacity-60"
+            >
+              {restoreLoading ? "Restoring..." : "Restore Selected File"}
+            </button>
+          </div>
+          {restoreError && (
+            <p className="text-xs text-red-600">Restore failed: {restoreError}</p>
+          )}
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Note: Restore does not delete existing data. Ensure your RLS policies allow inserts/updates.
+          </p>
         </div>
       </SectionCard>
 

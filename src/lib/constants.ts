@@ -46,9 +46,7 @@ export const packageTypes = [
 ];
 
 export const sessionTypes = [
-  "Half Session",
-  "Full Session",
-  "Half and Full Session",
+  "One and Half Session",
   "Two Sessions",
   "Not Needed",
 ];
@@ -60,6 +58,7 @@ export const coverageTypes = ["Traditional", "Candid", "Semi-Candid"];
 export const additionalServices = [
   "Drone Photography",
   "Drone Videography",
+  "Instant AI Face / QR",
   "Pre-Wedding Shoot",
   "Post-Wedding Shoot",
   "Pre or Post Wedding Shoot",

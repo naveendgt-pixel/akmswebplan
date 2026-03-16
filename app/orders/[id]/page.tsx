@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import StatCard from "@/components/StatCard";
@@ -113,6 +113,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [finalBudgetInput, setFinalBudgetInput] = useState<number>(0);
   const [editingCreatedDate, setEditingCreatedDate] = useState(false);
   const [createdDateInput, setCreatedDateInput] = useState<string>("");
+  const expenseDatePickerRef = useRef<HTMLInputElement | null>(null);
+  const postProdDatePickerRef = useRef<HTMLInputElement | null>(null);
+  const [expenseDateText, setExpenseDateText] = useState<string>("");
+  const [postProdDateText, setPostProdDateText] = useState<string>("");
 
   // Post Production Expense Categories (fixed for all orders)
   const postProdCategories = [
@@ -204,6 +208,50 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const effectiveBudget = order?.final_budget || order?.total_amount || 0;
   const profit = effectiveBudget - totalExpenses;
   const balanceDue = effectiveBudget - totalPayments;
+  const vendorSuggestions = Array.from(
+    new Set(
+      expenses
+        .map((e) => (e.vendor_name || "").trim())
+        .filter((name) => name.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const formatDateDisplay = (isoDate: string | null | undefined) => {
+    if (!isoDate) return "";
+    const [year, month, day] = isoDate.split("-");
+    if (!year || !month || !day) return "";
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDateDisplay = (value: string) => {
+    const parts = value.trim().split(/[\/\.\-]/);
+    if (parts.length !== 3) return null;
+    const [dayStr, monthStr, yearStr] = parts;
+    if (!dayStr || !monthStr || !yearStr) return null;
+    const day = parseInt(dayStr, 10);
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10);
+    if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+    if (yearStr.length < 4 || year < 1900 || year > 2100) return null;
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    const iso = `${yearStr.padStart(4, "0")}-${monthStr.padStart(2, "0")}-${dayStr.padStart(2, "0")}`;
+    const test = new Date(iso);
+    if (Number.isNaN(test.getTime())) return null;
+    return iso;
+  };
+
+  useEffect(() => {
+    if (showExpenseModal) {
+      setExpenseDateText(formatDateDisplay(expenseForm.expense_date));
+    }
+  }, [showExpenseModal, expenseForm.expense_date]);
+
+  useEffect(() => {
+    if (showPostProdExpenseModal) {
+      setPostProdDateText(formatDateDisplay(expenseForm.expense_date));
+    }
+  }, [showPostProdExpenseModal, expenseForm.expense_date]);
 
   // Item grouping helpers removed — not currently used in this view
 
@@ -1677,6 +1725,11 @@ Thank you for choosing Aura Knot Photography! 📸`;
             <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
               {editingExpense ? "Edit Expense" : "Add Expense"}
             </h3>
+            <datalist id="vendor-suggestions">
+              {vendorSuggestions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
             <div className="grid gap-4">
               {/* Service (Category) - Matches service descriptions */}
               <div className="flex flex-col gap-1.5">
@@ -1692,7 +1745,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
               {/* Vendor Name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-[var(--foreground)]">Vendor Name</label>
-                <input type="text" placeholder="Vendor or supplier name" className={inputClass} value={expenseForm.vendor_name} onChange={(e) => setExpenseForm({ ...expenseForm, vendor_name: e.target.value })} />
+                <input type="text" list="vendor-suggestions" placeholder="Vendor or supplier name" className={inputClass} value={expenseForm.vendor_name} onChange={(e) => setExpenseForm({ ...expenseForm, vendor_name: e.target.value })} />
               </div>
               {/* Description */}
               <div className="flex flex-col gap-1.5">
@@ -1703,6 +1756,49 @@ Thank you for choosing Aura Knot Photography! 📸`;
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-[var(--foreground)]">Expense Amount (₹)</label>
                 <input type="number" placeholder="0" className={inputClass} value={expenseForm.amount || ""} onChange={(e) => setExpenseForm({ ...expenseForm, amount: parseFloat(e.target.value) || 0 })} />
+              </div>
+              {/* Date */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Date</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="DD/MM/YYYY"
+                    className={inputClass}
+                    value={expenseDateText}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setExpenseDateText(next);
+                      const parsed = parseDateDisplay(next);
+                      if (parsed) {
+                        setExpenseForm({ ...expenseForm, expense_date: parsed });
+                      }
+                    }}
+                    onBlur={() => setExpenseDateText(formatDateDisplay(expenseForm.expense_date))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const picker = expenseDatePickerRef.current;
+                      if (picker?.showPicker) picker.showPicker();
+                      else picker?.click();
+                    }}
+                    className="h-10 px-3 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)]"
+                  >
+                    📅
+                  </button>
+                  <input
+                    ref={expenseDatePickerRef}
+                    type="date"
+                    className="sr-only"
+                    value={expenseForm.expense_date}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setExpenseForm({ ...expenseForm, expense_date: next });
+                      setExpenseDateText(formatDateDisplay(next));
+                    }}
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -1732,6 +1828,11 @@ Thank you for choosing Aura Knot Photography! 📸`;
             <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
               {editingExpense ? "Edit Post Production Expense" : "Add Post Production Expense"}
             </h3>
+            <datalist id="vendor-suggestions">
+              {vendorSuggestions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
             <div className="grid gap-4">
               {/* Category */}
               <div className="flex flex-col gap-1.5">
@@ -1744,7 +1845,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
               {/* Vendor Name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-[var(--foreground)]">Vendor Name</label>
-                <input type="text" placeholder="Editor, designer, or studio name" className={inputClass} value={expenseForm.vendor_name} onChange={(e) => setExpenseForm({ ...expenseForm, vendor_name: e.target.value })} />
+                <input type="text" list="vendor-suggestions" placeholder="Editor, designer, or studio name" className={inputClass} value={expenseForm.vendor_name} onChange={(e) => setExpenseForm({ ...expenseForm, vendor_name: e.target.value })} />
               </div>
               {/* Description - Required for Miscellaneous */}
               <div className="flex flex-col gap-1.5">
@@ -1763,6 +1864,49 @@ Thank you for choosing Aura Knot Photography! 📸`;
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-[var(--foreground)]">Amount (₹)</label>
                 <input type="number" placeholder="0" className={inputClass} value={expenseForm.amount || ""} onChange={(e) => setExpenseForm({ ...expenseForm, amount: parseFloat(e.target.value) || 0 })} />
+              </div>
+              {/* Date */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-[var(--foreground)]">Date</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="DD/MM/YYYY"
+                    className={inputClass}
+                    value={postProdDateText}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setPostProdDateText(next);
+                      const parsed = parseDateDisplay(next);
+                      if (parsed) {
+                        setExpenseForm({ ...expenseForm, expense_date: parsed });
+                      }
+                    }}
+                    onBlur={() => setPostProdDateText(formatDateDisplay(expenseForm.expense_date))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const picker = postProdDatePickerRef.current;
+                      if (picker?.showPicker) picker.showPicker();
+                      else picker?.click();
+                    }}
+                    className="h-10 px-3 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)]"
+                  >
+                    📅
+                  </button>
+                  <input
+                    ref={postProdDatePickerRef}
+                    type="date"
+                    className="sr-only"
+                    value={expenseForm.expense_date}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setExpenseForm({ ...expenseForm, expense_date: next });
+                      setPostProdDateText(formatDateDisplay(next));
+                    }}
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">

@@ -23,6 +23,16 @@ interface ExpenseSummary {
   total: number;
 }
 
+interface QuotationSummary {
+  id: string;
+  status: string;
+  event_type: string | null;
+  event_date: string | null;
+  created_at: string;
+  subtotal: number | null;
+  total_amount: number | null;
+}
+
 export default function ReportsPage() {
   const [period, setPeriod] = useState("");
   const [eventType, setEventType] = useState("");
@@ -30,6 +40,7 @@ export default function ReportsPage() {
   const [customEndDate, setCustomEndDate] = useState("");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [expenses, setExpenses] = useState<ExpenseSummary[]>([]);
+  const [quotationDiscountTotal, setQuotationDiscountTotal] = useState(0);
 
   // Helper function to parse date string and normalize to start of day
   const getDateAtStartOfDay = (dateStr: string | null | undefined): Date | null => {
@@ -97,6 +108,18 @@ export default function ReportsPage() {
       }
 
       const { data: ordersData } = await query.order("event_date", { ascending: false });
+
+      // Fetch quotations for discount summary
+      let quotationQuery = supabase
+        .from("quotations")
+        .select("id, status, event_type, event_date, created_at, subtotal, total_amount");
+
+      if (eventType) {
+        quotationQuery = quotationQuery.eq("event_type", eventType);
+      }
+
+      const { data: quotationsData } = await quotationQuery.order("event_date", { ascending: false });
+      const quotations = (quotationsData || []) as QuotationSummary[];
       
       // Filter orders: only include completed events (event_end_date has passed)
       const today = new Date();
@@ -115,6 +138,19 @@ export default function ReportsPage() {
       });
 
       setOrders(periodFilteredOrders);
+
+      const periodQuotations = quotations.filter((q) => {
+        const quoteDate = q.event_date ? new Date(q.event_date) : new Date(q.created_at);
+        quoteDate.setHours(0, 0, 0, 0);
+        return startDate ? (quoteDate >= startDate && quoteDate <= endDate) : true;
+      });
+      const confirmedQuotations = periodQuotations.filter((q) => q.status === "Confirmed");
+      const discountTotal = confirmedQuotations.reduce((sum, q) => {
+        const subtotal = q.subtotal ?? q.total_amount ?? 0;
+        const total = q.total_amount ?? 0;
+        return sum + Math.max(subtotal - total, 0);
+      }, 0);
+      setQuotationDiscountTotal(discountTotal);
 
       // Fetch expenses related to completed orders only
       const completedOrderIds = new Set(periodFilteredOrders.map(o => o.id));
@@ -256,6 +292,24 @@ export default function ReportsPage() {
   </div>
 
   <div class="section">
+    <div class="section-title">Quotation Discounts (Confirmed)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Confirmed quotation discounts (period)</td>
+          <td class="amount negative">₹${quotationDiscountTotal.toLocaleString()}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
     <div class="section-title">💰 Expense Breakdown</div>
     <table>
       <thead>
@@ -292,6 +346,10 @@ export default function ReportsPage() {
         <tr>
           <td>Total Revenue</td>
           <td class="amount">₹${totalRevenue.toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td>Quotation Discounts (Confirmed)</td>
+          <td class="amount negative">₹${quotationDiscountTotal.toLocaleString()}</td>
         </tr>
         <tr>
           <td>Amount Collected</td>

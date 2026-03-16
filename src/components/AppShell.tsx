@@ -32,6 +32,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string>("");
   const oauthBypass = typeof process !== 'undefined' && !!process.env.NEXT_PUBLIC_DISABLE_OAUTH &&
     (process.env.NEXT_PUBLIC_DISABLE_OAUTH === '1' || process.env.NEXT_PUBLIC_DISABLE_OAUTH?.toLowerCase() === 'true');
 
@@ -69,6 +70,47 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateLogo = () => {
+      const saved = localStorage.getItem("brand_logo_url") || "";
+      setBrandLogoUrl(saved);
+    };
+    updateLogo();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "brand_logo_url") updateLogo();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("brand-logo-updated", updateLogo as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("brand-logo-updated", updateLogo as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    const updateOffset = () => {
+      const vv = window.visualViewport;
+      if (!vv) {
+        root.style.setProperty("--keyboard-offset", "0px");
+        return;
+      }
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--keyboard-offset", `${offset}px`);
+    };
+    updateOffset();
+    window.visualViewport?.addEventListener("resize", updateOffset);
+    window.visualViewport?.addEventListener("scroll", updateOffset);
+    window.addEventListener("resize", updateOffset);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateOffset);
+      window.visualViewport?.removeEventListener("scroll", updateOffset);
+      window.removeEventListener("resize", updateOffset);
+    };
   }, []);
 
   useEffect(() => {
@@ -145,15 +187,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             >
               {mobileMenuOpen ? "✕" : "☰"}
             </button>
-            <div className="flex h-9 w-9 xs:h-10 xs:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] shadow-lg shadow-[var(--primary)]/25 overflow-hidden">
-              <Image src="/Untitled-1.png" alt="Aura Knot Logo" width={36} height={36} className="h-8 w-8 xs:h-9 xs:w-9 object-contain" />
+            <div className="flex h-9 w-9 xs:h-10 xs:w-10 items-center justify-center overflow-hidden rounded-2xl">
+              <Image src={brandLogoUrl || "/Untitled-1.png"} alt="Aura Knot Logo" width={36} height={36} className="h-8 w-8 xs:h-9 xs:w-9 object-contain" />
               <span className="sr-only">Aura Knot</span>
             </div>
-            <div className="hidden xs:block">
-              <h1 className="text-base sm:text-lg font-semibold tracking-tight">Aura Knot</h1>
-              <p className="text-[10px] sm:text-xs text-[var(--muted-foreground)] font-medium">
-                Event Management
-              </p>
+            <div className="block">
+              <h1 className="text-sm sm:text-base font-semibold tracking-tight text-[var(--foreground)]">
+                AURA KNOT EVENT CONNECT
+              </h1>
             </div>
           </div>
           <AuthButton />
@@ -177,8 +218,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] shadow-lg overflow-hidden">
-                <Image src="/Untitled-1.png" alt="Aura Knot Logo" width={36} height={36} className="h-9 w-9 object-contain" />
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
+                <Image src={brandLogoUrl || "/Untitled-1.png"} alt="Aura Knot Logo" width={36} height={36} className="h-9 w-9 object-contain" />
                 <span className="sr-only">Aura Knot</span>
               </div>
             </div>
@@ -262,7 +303,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile Bottom Navigation */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-xl lg:hidden"
-        style={{ transform: "translateZ(0)" }}
+        style={{ transform: "translateY(var(--keyboard-offset, 0px)) translateZ(0)" }}
       >
         <div className="flex items-center justify-around px-1 py-1 xs:px-2 xs:py-2">
           {navItems.slice(0, 5).map((item) => {

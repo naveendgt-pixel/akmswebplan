@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import SectionCard from "@/components/SectionCard";
 import { supabase } from "@/lib/supabaseClient";
@@ -210,6 +210,17 @@ export default function PaymentsPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"payments" | "expenses">("payments");
   const [saving, setSaving] = useState(false);
+  const expenseDescriptionSuggestions = Array.from(
+    new Set(
+      expenses
+        .map((e) => (e.description || "").trim())
+        .filter((value) => value.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  const paymentDatePickerRef = useRef<HTMLInputElement | null>(null);
+  const expenseDatePickerRef = useRef<HTMLInputElement | null>(null);
+  const [paymentDateText, setPaymentDateText] = useState<string>("");
+  const [expenseDateText, setExpenseDateText] = useState<string>("");
   
   // Edit payment state
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
@@ -231,6 +242,7 @@ export default function PaymentsPage() {
     type: "Initial Advance",
     reference: "",
     notes: "",
+    payment_date: new Date().toISOString().split("T")[0],
   });
 
   // Expense form
@@ -243,6 +255,43 @@ export default function PaymentsPage() {
     category: "Miscellaneous",
     date: new Date().toISOString().split("T")[0],
   });
+
+  const formatDateDisplay = (isoDate: string | null | undefined) => {
+    if (!isoDate) return "";
+    const [year, month, day] = isoDate.split("-");
+    if (!year || !month || !day) return "";
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDateDisplay = (value: string) => {
+    const parts = value.trim().split(/[\/\.\-]/);
+    if (parts.length !== 3) return null;
+    const [dayStr, monthStr, yearStr] = parts;
+    if (!dayStr || !monthStr || !yearStr) return null;
+    const day = parseInt(dayStr, 10);
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10);
+    if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+    if (yearStr.length < 4 || year < 1900 || year > 2100) return null;
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    const iso = `${yearStr.padStart(4, "0")}-${monthStr.padStart(2, "0")}-${dayStr.padStart(2, "0")}`;
+    const test = new Date(iso);
+    if (Number.isNaN(test.getTime())) return null;
+    return iso;
+  };
+
+  useEffect(() => {
+    if (showPaymentForm) {
+      setPaymentDateText(formatDateDisplay(paymentForm.payment_date));
+    }
+  }, [showPaymentForm, paymentForm.payment_date]);
+
+  useEffect(() => {
+    if (showExpenseForm) {
+      setExpenseDateText(formatDateDisplay(expenseForm.date));
+    }
+  }, [showExpenseForm, expenseForm.date]);
 
   // Fetch data
   useEffect(() => {
@@ -388,7 +437,7 @@ export default function PaymentsPage() {
       }
 
       setShowPaymentForm(false);
-      setPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "" });
+      setPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "", payment_date: new Date().toISOString().split("T")[0] });
       
       // Refresh data
       router.refresh();
@@ -923,6 +972,48 @@ export default function PaymentsPage() {
                   placeholder="Additional notes"
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium">Date</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="DD/MM/YYYY"
+                    className="w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                    value={paymentDateText}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setPaymentDateText(next);
+                      const parsed = parseDateDisplay(next);
+                      if (parsed) {
+                        setPaymentForm({ ...paymentForm, payment_date: parsed });
+                      }
+                    }}
+                    onBlur={() => setPaymentDateText(formatDateDisplay(paymentForm.payment_date))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const picker = paymentDatePickerRef.current;
+                      if (picker?.showPicker) picker.showPicker();
+                      else picker?.click();
+                    }}
+                    className="h-11 px-3 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)]"
+                  >
+                    📅
+                  </button>
+                  <input
+                    ref={paymentDatePickerRef}
+                    type="date"
+                    className="sr-only"
+                    value={paymentForm.payment_date}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setPaymentForm({ ...paymentForm, payment_date: next });
+                      setPaymentDateText(formatDateDisplay(next));
+                    }}
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
@@ -1046,7 +1137,13 @@ export default function PaymentsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Description *</label>
+                <datalist id="expense-description-suggestions">
+                  {expenseDescriptionSuggestions.map((value) => (
+                    <option key={value} value={value} />
+                  ))}
+                </datalist>
                 <input
+                  list="expense-description-suggestions"
                   value={expenseForm.description}
                   onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
                   className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
@@ -1079,12 +1176,45 @@ export default function PaymentsPage() {
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium">Date</label>
-                <input
-                  type="date"
-                  value={expenseForm.date}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
-                />
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="DD/MM/YYYY"
+                    className="w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                    value={expenseDateText}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setExpenseDateText(next);
+                      const parsed = parseDateDisplay(next);
+                      if (parsed) {
+                        setExpenseForm({ ...expenseForm, date: parsed });
+                      }
+                    }}
+                    onBlur={() => setExpenseDateText(formatDateDisplay(expenseForm.date))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const picker = expenseDatePickerRef.current;
+                      if (picker?.showPicker) picker.showPicker();
+                      else picker?.click();
+                    }}
+                    className="h-11 px-3 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)]"
+                  >
+                    📅
+                  </button>
+                  <input
+                    ref={expenseDatePickerRef}
+                    type="date"
+                    className="sr-only"
+                    value={expenseForm.date}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setExpenseForm({ ...expenseForm, date: next });
+                      setExpenseDateText(formatDateDisplay(next));
+                    }}
+                  />
+                </div>
               </div>
             </div>
             <div className="flex gap-3 mt-6">

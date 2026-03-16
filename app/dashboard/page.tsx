@@ -21,6 +21,8 @@ interface DashboardStats {
   confirmedQuotations: number;
   pendingQuotations: number;
   confirmedQuotationValue: number;
+  confirmedQuotationSubtotal: number;
+  confirmedQuotationDiscountPercent: number;
 }
 
 interface RecentOrder {
@@ -46,6 +48,7 @@ interface RecentQuotation {
 }
 
 export default function DashboardPage() {
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string>("");
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
     pendingOrders: 0,
@@ -59,6 +62,8 @@ export default function DashboardPage() {
     confirmedQuotations: 0,
     pendingQuotations: 0,
     confirmedQuotationValue: 0,
+    confirmedQuotationSubtotal: 0,
+    confirmedQuotationDiscountPercent: 0,
   });
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
@@ -67,6 +72,24 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState("This Month");
   const [customDateStart, setCustomDateStart] = useState("");
   const [customDateEnd, setCustomDateEnd] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateLogo = () => {
+      const saved = localStorage.getItem("brand_logo_url") || "";
+      setBrandLogoUrl(saved);
+    };
+    updateLogo();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "brand_logo_url") updateLogo();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("brand-logo-updated", updateLogo as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("brand-logo-updated", updateLogo as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -82,6 +105,10 @@ export default function DashboardPage() {
 
         // Calculate date ranges based on selected period
         switch (period) {
+          case "All":
+            startDate = new Date(2000, 0, 1);
+            endDate = new Date(2100, 11, 31, 23, 59, 59);
+            break;
           case "This Month":
             startDate = new Date(now.getFullYear(), now.getMonth(), 1);
             endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -228,9 +255,19 @@ export default function DashboardPage() {
         const totalQuotations = periodQuotations.length;
         const confirmedQuotations = periodQuotations.filter(q => q.status === "Confirmed").length;
         const pendingQuotations = periodQuotations.filter(q => q.status === "Pending").length;
+        const confirmedQuotationSubtotal = periodQuotations
+          .filter(q => q.status === "Confirmed")
+          .reduce((sum, q) => {
+            const subtotal = q.subtotal || 0;
+            const total = q.total_amount || q.grand_total || 0;
+            return sum + (subtotal > 0 ? subtotal : total);
+          }, 0);
         const confirmedQuotationValue = periodQuotations
           .filter(q => q.status === "Confirmed")
           .reduce((sum, q) => sum + (q.total_amount || q.grand_total || 0), 0);
+        const confirmedQuotationDiscountPercent = confirmedQuotationSubtotal > 0 && confirmedQuotationSubtotal >= confirmedQuotationValue
+          ? Math.round(((confirmedQuotationSubtotal - confirmedQuotationValue) / confirmedQuotationSubtotal) * 100)
+          : 0;
 
         // WORKFLOW PROGRESS - cumulative workflow status for orders where event_end_date is in period
         const workflowStats: Record<string, { completed: number; total: number }> = {};
@@ -267,6 +304,8 @@ export default function DashboardPage() {
           confirmedQuotations,
           pendingQuotations,
           confirmedQuotationValue,
+          confirmedQuotationSubtotal,
+          confirmedQuotationDiscountPercent,
         });
 
         setWorkflowSummary(workflowStats);
@@ -315,7 +354,7 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3 mb-2 md:mb-0">
-          <Image src="/Untitled-1.png" alt="Logo" width={40} height={40} className="rounded-lg shadow" />
+          <Image src={brandLogoUrl || "/Untitled-1.png"} alt="Logo" width={40} height={40} className="rounded-lg shadow" />
           <div>
             <p className="text-sm font-medium text-[var(--muted-foreground)]">Dashboard</p>
             <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Overview</h2>
@@ -327,6 +366,7 @@ export default function DashboardPage() {
             onChange={(e) => setPeriod(e.target.value)}
             className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
           >
+            <option>All</option>
             <option>This Month</option>
             <option>Last Month</option>
             <option>This Quarter</option>
@@ -363,7 +403,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Orders" value={stats.totalOrders.toString()} trend="neutral" />
         <StatCard label="Pending Orders" value={stats.pendingOrders.toString()} helper="Workflow in progress" trend={stats.pendingOrders > 0 ? "down" : "neutral"} />
         <StatCard label="Completed Orders" value={stats.completedOrders.toString()} helper="All stages done" trend="up" />
@@ -371,7 +411,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Financial Stats */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-[var(--border)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--accent)]/10 p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Monthly Revenue</p>
           <p className="text-2xl font-bold text-[var(--foreground)]">{formatCurrency(stats.monthlyRevenue)}</p>
@@ -449,10 +489,22 @@ export default function DashboardPage() {
             View All Quotations →
           </Link>
         </SectionCard>
-        <SectionCard title="Total Value of Confirmed Quotations" description="Sum of approved quotations in selected period">
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="text-3xl font-bold text-[var(--success)]">{formatCurrency(stats.confirmedQuotationValue)}</p>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Confirmed only</p>
+        <SectionCard title="Confirmed Quotation Value" description="Subtotal vs final after discount">
+          <div className="flex flex-col gap-3 py-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-[var(--muted-foreground)]">Subtotal (before discount)</p>
+              <p className="text-2xl font-bold text-[var(--foreground)]">{formatCurrency(stats.confirmedQuotationSubtotal)}</p>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--card)]/70 px-3 py-2">
+              <div>
+                <p className="text-xs text-[var(--muted-foreground)]">Final total (after discount)</p>
+                <p className="text-lg font-bold text-[var(--success)]">{formatCurrency(stats.confirmedQuotationValue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-[var(--muted-foreground)]">Discount</p>
+                <p className="text-sm font-semibold text-[var(--warning)]">{stats.confirmedQuotationDiscountPercent}%</p>
+              </div>
+            </div>
           </div>
           <Link 
             href="/quotations"
