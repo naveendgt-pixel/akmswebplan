@@ -204,16 +204,8 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
       .trim();
   };
 
-  const normalizeSession = (value: string) => {
-    return value
-      .replace(/half\s*&\s*full\s*session/gi, "One and Half Session")
-      .replace(/half\s*and\s*full\s*session/gi, "One and Half Session")
-      .replace(/half\s*session/gi, "One and Half Session")
-      .replace(/full\s*session/gi, "One and Half Session");
-  };
-
   const formatItemDescription = (item: QuotationItem, category: string) => {
-    let desc = normalizeSession(item.description || "");
+    let desc = item.description || "";
 
     if (category === "Print & Gifts") {
       desc = stripComplimentary(desc);
@@ -229,7 +221,7 @@ export default function QuotationPDFPage({ params }: { params: Promise<{ id: str
         const sessionMatch = firstPart.match(/(.+?)\s*\((.+)\)/);
         if (sessionMatch) {
           const type = sessionMatch[1].trim();
-          const session = normalizeSession(sessionMatch[2].trim());
+          const session = sessionMatch[2].trim();
           const base = `${type} ${match[1]} / (${session})`;
           if (/traditional/i.test(type) && areaPart) {
             return `${base} - ${areaPart}`;
