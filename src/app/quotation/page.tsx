@@ -1038,7 +1038,7 @@ function QuotationContent() {
         // Additional Services
         form.additionalServices.forEach((as) => {
           if (as.rate > 0 || as.service) {
-            const serviceName = as.service === "Other" ? as.remarks : as.service;
+            const serviceName = as.service === "Other" || as.service === "Others" ? as.remarks : as.service;
             const complementaryLabel = as.complementary === "Yes" ? " (Complimentary)" : "";
             const sessionLabel = as.session ? ` - ${as.session}` : "";
             orderItems.push({
@@ -1218,7 +1218,7 @@ function QuotationContent() {
       // Additional Services
       form.additionalServices.forEach((as) => {
         if (as.rate > 0 || as.service) {
-          const serviceName = as.service === "Other" ? as.remarks : as.service;
+          const serviceName = as.service === "Other" || as.service === "Others" ? as.remarks : as.service;
           const complementaryLabel = as.complementary === "Yes" ? " (Complimentary)" : "";
           const sessionLabel = as.session ? ` - ${as.session}` : "";
           items.push({
