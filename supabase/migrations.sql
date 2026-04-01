@@ -11,6 +11,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_budget DECIMAL(12, 2) DEFAULT 
 -- Add order_completed column to orders (if not exists)
 -- This field determines if an order is marked as complete
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_completed VARCHAR(10) DEFAULT 'No';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_completed_date DATE;
 
 -- Add comprehensive print & gifts columns to quotations table
 ALTER TABLE quotations ADD COLUMN IF NOT EXISTS mini_books_comp BOOLEAN DEFAULT false;
@@ -94,5 +95,10 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 	created_at timestamptz DEFAULT now(),
 	last_seen timestamptz
 );
+
+-- Enable RLS on Supabase-managed public tables that should not be client-readable.
+-- The rate_limits table is typically used internally by platform features and should
+-- not be exposed through PostgREST without explicit policies.
+ALTER TABLE IF EXISTS public.rate_limits ENABLE ROW LEVEL SECURITY;
 
 

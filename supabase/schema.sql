@@ -232,6 +232,7 @@ CREATE TABLE orders (
   balance_due DECIMAL(12, 2) DEFAULT 0,
   -- Completion Status
   order_completed VARCHAR(10) DEFAULT 'No',
+  order_completed_date DATE,
   -- Status
   status VARCHAR(50) DEFAULT 'Confirmed',
   payment_status VARCHAR(50) DEFAULT 'Pending',

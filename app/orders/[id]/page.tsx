@@ -44,6 +44,8 @@ interface OrderData {
   total_amount: number;
   amount_paid: number;
   balance_due: number;
+  order_completed: string;
+  order_completed_date: string | null;
   status: string;
   payment_status: string;
   delivery_status: string;
@@ -88,6 +90,7 @@ interface Payment {
   amount: number;
   payment_method: string;
   payment_date: string;
+  payment_type?: string | null;
   notes: string;
 }
 
@@ -113,6 +116,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [finalBudgetInput, setFinalBudgetInput] = useState<number>(0);
   const [editingCreatedDate, setEditingCreatedDate] = useState(false);
   const [createdDateInput, setCreatedDateInput] = useState<string>("");
+  const [editingCompletionDate, setEditingCompletionDate] = useState(false);
+  const [completionDateInput, setCompletionDateInput] = useState<string>("");
   const expenseDatePickerRef = useRef<HTMLInputElement | null>(null);
   const postProdDatePickerRef = useRef<HTMLInputElement | null>(null);
   const [expenseDateText, setExpenseDateText] = useState<string>("");
@@ -201,6 +206,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
     fetchOrderData();
   }, [resolvedParams.id]);
+
+  useEffect(() => {
+    setCompletionDateInput(order?.order_completed_date || new Date().toISOString().split("T")[0]);
+  }, [order?.order_completed_date]);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -727,6 +736,31 @@ Thank you for choosing Aura Knot Photography! 📸`;
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(amount);
   };
 
+  const escapeHtml = (value: string | number | null | undefined) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const getPaymentCategory = (payment: Payment) => {
+    if (payment.payment_type?.trim()) return payment.payment_type.trim();
+    const note = (payment.notes || "").trim();
+    if (!note) return "Payment";
+    const [category] = note.split(":");
+    return category.trim() || "Payment";
+  };
+
+  const openPdfWindow = (html: string) => {
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => printWindow.print();
+    }
+  };
+
   const formatPerson = (title?: string | null, name?: string | null) => {
     const t = (title || "").trim();
     const n = (name || "").trim();
@@ -790,12 +824,152 @@ Thank you for choosing Aura Knot Photography! 📸`;
       '<div style="margin-top: 20px; padding: 15px; background: ' + (balanceDue > 0 ? "#fef2f2" : "#dcfce7") + '; border-radius: 8px; text-align: center;"><div style="font-size: 12px; color: #64748b;">Balance Due</div><div style="font-size: 24px; font-weight: bold; color: ' + (balanceDue > 0 ? "#dc2626" : "#16a34a") + ';">₹' + balanceDue.toLocaleString() + '</div></div>' +
       '<div class="footer"><p>Aura Knot Photography • Generated on ' + formatDate(new Date().toISOString()) + '</p></div></body></html>';
 
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.onload = () => printWindow.print();
-    }
+    openPdfWindow(html);
+  };
+
+  const generateCustomerPDF = () => {
+    if (!order) return;
+
+    const origin = window.location.origin;
+    const discountLabel = order.discount_percent > 0
+      ? `${formatCurrency(order.discount_amount || 0)} (${order.discount_percent}%)`
+      : formatCurrency(order.discount_amount || 0);
+
+    const customerItemsHtml = items.length > 0
+      ? items.map((item) =>
+          `<tr><td>${escapeHtml(item.description || "Item")}</td><td>${escapeHtml(item.category || "-")}</td><td class="amount">${escapeHtml(item.quantity || 0)}</td></tr>`
+        ).join("")
+      : '<tr><td colspan="3" class="empty-row">No quotation items added</td></tr>';
+
+    const customerPaymentsHtml = payments.length > 0
+      ? payments.map((payment) =>
+          `<tr><td>${escapeHtml(payment.payment_number || "-")}</td><td>${escapeHtml(formatDate(payment.payment_date))}</td><td>${escapeHtml(getPaymentCategory(payment))}</td><td>${escapeHtml(payment.payment_method || "-")}</td><td class="amount">${escapeHtml(formatCurrency(payment.amount || 0))}</td></tr>`
+        ).join("")
+      : '<tr><td colspan="5" class="empty-row">No payments recorded</td></tr>';
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Customer Copy - ${escapeHtml(order.order_number)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; padding: 32px; color: #1e293b; background: #ffffff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #5b1e2d; margin-bottom: 24px; }
+    .brand img { height: 48px; width: auto; display: block; margin-bottom: 8px; }
+    .brand-sub { font-size: 12px; color: #64748b; }
+    .doc-title { font-size: 24px; font-weight: 700; color: #5b1e2d; }
+    .doc-meta { text-align: right; font-size: 13px; color: #64748b; line-height: 1.7; }
+    .section { margin-bottom: 24px; }
+    .section-title { font-size: 14px; font-weight: 700; color: #5b1e2d; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.04em; }
+    .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+    .label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+    .value { font-size: 14px; font-weight: 600; color: #0f172a; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; color: #475569; font-weight: 700; }
+    .amount { text-align: right; white-space: nowrap; }
+    .empty-row { text-align: center; color: #64748b; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .summary-box { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; background: #fff; }
+    .summary-box.primary { background: #5b1e2d; color: #fff; border-color: #5b1e2d; }
+    .summary-box.primary .label { color: rgba(255,255,255,0.8); }
+    .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <img src="${origin}/ak-logo-final.png" alt="Aura Knot" />
+      <div class="brand-sub">Photography &amp; Events</div>
+    </div>
+    <div>
+      <div class="doc-title">CUSTOMER ORDER COPY</div>
+      <div class="doc-meta">
+        <div>Order: ${escapeHtml(order.order_number)}</div>
+        <div>Generated: ${escapeHtml(formatDate(new Date().toISOString()))}</div>
+        <div>Event Date: ${escapeHtml(formatDate(order.event_date))}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Customer Details</div>
+    <div class="info-grid">
+      <div class="info-box"><div class="label">Customer Name</div><div class="value">${escapeHtml(customerDisplayName || "N/A")}</div></div>
+      <div class="info-box"><div class="label">Mobile Number</div><div class="value">${escapeHtml(customer?.phone || order.customer_phone || "N/A")}</div></div>
+      <div class="info-box"><div class="label">Email</div><div class="value">${escapeHtml(customer?.email || order.customer_email || "-")}</div></div>
+      <div class="info-box"><div class="label">City</div><div class="value">${escapeHtml(customer?.city || order.event_city || "-")}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Event Details</div>
+    <div class="info-grid">
+      <div class="info-box"><div class="label">Event Type</div><div class="value">${escapeHtml(order.event_type || "N/A")}</div></div>
+      <div class="info-box"><div class="label">Package Type</div><div class="value">${escapeHtml(order.package_type || "-")}</div></div>
+      <div class="info-box"><div class="label">Venue</div><div class="value">${escapeHtml(order.event_venue || "-")}</div></div>
+      <div class="info-box"><div class="label">Event City</div><div class="value">${escapeHtml(order.event_city || "-")}</div></div>
+      <div class="info-box"><div class="label">Event Date</div><div class="value">${escapeHtml(formatDate(order.event_date))}</div></div>
+      <div class="info-box"><div class="label">End Date</div><div class="value">${escapeHtml(formatDate(order.event_end_date || order.event_date))}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Quotation Details</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Category</th>
+          <th class="amount">Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${customerItemsHtml}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Quotation Summary</div>
+    <div class="summary-grid">
+      <div class="summary-box"><div class="label">Quotation Total Amount</div><div class="value">${escapeHtml(formatCurrency(order.total_amount || 0))}</div></div>
+      <div class="summary-box"><div class="label">Discount</div><div class="value">${escapeHtml(discountLabel)}</div></div>
+      <div class="summary-box"><div class="label">Estimated Amount</div><div class="value">${escapeHtml(formatCurrency(effectiveBudget))}</div></div>
+      <div class="summary-box primary"><div class="label">Outstanding Balance</div><div class="value">${escapeHtml(formatCurrency(balanceDue))}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Payment Details</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Payment #</th>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Method</th>
+          <th class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${customerPaymentsHtml}
+        <tr>
+          <td colspan="4" style="font-weight: 700;">Total Paid</td>
+          <td class="amount" style="font-weight: 700;">${escapeHtml(formatCurrency(totalPayments))}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">Aura Knot Photography &amp; Events</div>
+</body>
+</html>`;
+
+    openPdfWindow(html);
   };
 
   const handleDeleteOrder = async () => {
@@ -994,6 +1168,12 @@ Thank you for choosing Aura Knot Photography! 📸`;
             📄 Download PDF
           </button>
           <button
+            onClick={generateCustomerPDF}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 text-sm font-semibold text-white shadow-lg shadow-amber-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/30"
+          >
+            Customer PDF
+          </button>
+          <button
             onClick={() => setShowPaymentModal(true)}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-4 text-sm font-semibold text-white shadow-lg shadow-green-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-green-500/30"
           >
@@ -1147,21 +1327,72 @@ Thank you for choosing Aura Knot Photography! 📸`;
 
       {/* Order Completion Status */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
               ✅ Order Completion Status
             </h3>
             <p className="text-sm text-[var(--muted-foreground)]">Mark this order as complete to show profit in the dashboard</p>
+            {editingCompletionDate ? (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="date"
+                  value={completionDateInput}
+                  onChange={(e) => setCompletionDateInput(e.target.value)}
+                  className="h-8 px-2 text-sm rounded border border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                />
+                <button
+                  onClick={async () => {
+                    if (!supabase) return;
+                    try {
+                      await supabase.from("orders").update({ order_completed_date: completionDateInput }).eq("id", order.id);
+                      setOrder({ ...order, order_completed_date: completionDateInput });
+                      setEditingCompletionDate(false);
+                    } catch (error) {
+                      console.error("Error updating completion date:", error);
+                    }
+                  }}
+                  className="p-1.5 rounded bg-green-500 text-white hover:bg-green-600"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setCompletionDateInput(order.order_completed_date || new Date().toISOString().split("T")[0]);
+                    setEditingCompletionDate(false);
+                  }}
+                  className="p-1.5 rounded bg-gray-400 text-white hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <p
+                className={`mt-1 text-xs text-[var(--muted-foreground)] ${order.order_completed === "Yes" || order.status === "Completed" ? "cursor-pointer hover:text-[var(--foreground)] transition-colors" : ""}`}
+                onClick={() => {
+                  if (order.order_completed === "Yes" || order.status === "Completed") {
+                    setCompletionDateInput(order.order_completed_date || new Date().toISOString().split("T")[0]);
+                    setEditingCompletionDate(true);
+                  }
+                }}
+              >
+                Completed Date: <span className="font-medium text-[var(--foreground)]">{order.order_completed_date ? formatDate(order.order_completed_date) : "Not set"}</span>
+              </p>
+            )}
           </div>
           <select
-            value={order.status === "Completed" ? "Yes" : "No"}
+            value={order.order_completed === "Yes" || order.status === "Completed" ? "Yes" : "No"}
             onChange={async (e) => {
               if (!supabase) return;
               const newStatus = e.target.value;
               try {
-                const nextStatus = newStatus === "Yes" ? "Completed" : order.status || "Confirmed";
-                const payload = { status: nextStatus };
+                const isCompleted = newStatus === "Yes";
+                const nextStatus = isCompleted ? "Completed" : "Confirmed";
+                const payload = {
+                  status: nextStatus,
+                  order_completed: isCompleted ? "Yes" : "No",
+                  order_completed_date: isCompleted ? new Date().toISOString().split("T")[0] : null,
+                };
                 const targetId = resolvedParams.id;
                 const { error, status } = await supabase
                   .from("orders")
@@ -1173,17 +1404,22 @@ Thank you for choosing Aura Knot Photography! 📸`;
                 }
                 const { data: refreshed, error: refreshError } = await supabase
                   .from("orders")
-                  .select("id, status")
+                  .select("id, status, order_completed, order_completed_date")
                   .eq("id", targetId)
                   .single();
                 if (refreshError) {
-                  setOrder({ ...order, status: nextStatus });
+                  setOrder({ ...order, ...payload });
                   return;
                 }
-                setOrder({ ...order, status: refreshed.status });
+                setOrder({
+                  ...order,
+                  status: refreshed.status,
+                  order_completed: refreshed.order_completed,
+                  order_completed_date: refreshed.order_completed_date,
+                });
                 
                 // Show WhatsApp notification if order is marked as completed
-                if (newStatus === "Yes" && order.customer_phone) {
+                if (isCompleted && order.customer_phone) {
                   // Check if WhatsApp notifications are enabled for order completion
                   const whatsappSettings = (() => {
                     try {
@@ -1212,7 +1448,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
               }
             }}
             className={`text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer appearance-none outline-none ${
-              order.status === "Completed"
+              order.order_completed === "Yes" || order.status === "Completed"
                 ? "bg-[var(--success)] text-white"
                 : "bg-[var(--danger)] text-white"
             }`}
