@@ -231,6 +231,7 @@ export default function PaymentsPage() {
     type: "Initial Advance",
     reference: "",
     notes: "",
+    payment_date: new Date().toISOString().split("T")[0],
   });
   
   // Payment form
@@ -397,13 +398,26 @@ export default function PaymentsPage() {
         customer_id: order?.customers ? null : null,
         amount: paymentForm.amount,
         payment_method: paymentForm.method,
-        payment_date: new Date().toISOString().split("T")[0],
+        payment_date: paymentForm.payment_date,
         reference_number: paymentForm.reference || null,
         status: "Completed",
         notes: `${paymentForm.type}${paymentForm.notes ? ": " + paymentForm.notes : ""}`,
       });
 
       if (error) throw error;
+
+      if (order) {
+        const newTotalPaid = (order.amount_paid || 0) + paymentForm.amount;
+        const newBalance = (order.total_amount || 0) - newTotalPaid;
+        await supabase
+          .from("orders")
+          .update({
+            amount_paid: newTotalPaid,
+            balance_due: newBalance,
+            payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
+          })
+          .eq("id", order.id);
+      }
 
       alert(`Payment ${paymentNumber} recorded successfully!`);
 
@@ -460,18 +474,34 @@ export default function PaymentsPage() {
 
     setSaving(true);
     try {
+      const existingPayment = payments.find((payment) => payment.id === editingPaymentId);
+      const targetOrder = orders.find((order) => order.id === editPaymentForm.orderId);
       const { error } = await supabase.from("payments").update({
         amount: editPaymentForm.amount,
         payment_method: editPaymentForm.method,
+        payment_date: editPaymentForm.payment_date,
         reference_number: editPaymentForm.reference || null,
         notes: `${editPaymentForm.type}${editPaymentForm.notes ? ": " + editPaymentForm.notes : ""}`,
       }).eq("id", editingPaymentId);
 
       if (error) throw error;
 
+      if (existingPayment && targetOrder) {
+        const newTotalPaid = (targetOrder.amount_paid || 0) - existingPayment.amount + editPaymentForm.amount;
+        const newBalance = (targetOrder.total_amount || 0) - newTotalPaid;
+        await supabase
+          .from("orders")
+          .update({
+            amount_paid: newTotalPaid,
+            balance_due: newBalance,
+            payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
+          })
+          .eq("id", targetOrder.id);
+      }
+
       alert("Payment updated successfully!");
       setEditingPaymentId(null);
-      setEditPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "" });
+      setEditPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "", payment_date: new Date().toISOString().split("T")[0] });
       
       // Refresh data
       router.refresh();
@@ -495,9 +525,26 @@ export default function PaymentsPage() {
 
     setSaving(true);
     try {
+      const existingPayment = payments.find((payment) => payment.id === paymentId);
       const { error } = await supabase.from("payments").delete().eq("id", paymentId);
 
       if (error) throw error;
+
+      if (existingPayment) {
+        const targetOrder = orders.find((order) => order.id === existingPayment.order_id);
+        if (targetOrder) {
+          const newTotalPaid = Math.max(0, (targetOrder.amount_paid || 0) - existingPayment.amount);
+          const newBalance = (targetOrder.total_amount || 0) - newTotalPaid;
+          await supabase
+            .from("orders")
+            .update({
+              amount_paid: newTotalPaid,
+              balance_due: newBalance,
+              payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
+            })
+            .eq("id", targetOrder.id);
+        }
+      }
 
       alert("Payment deleted successfully!");
       router.refresh();
@@ -521,6 +568,7 @@ export default function PaymentsPage() {
       type: payment.notes?.split(":")[0] || "Other",
       reference: payment.reference_number || "",
       notes: payment.notes?.includes(":") ? payment.notes.split(": ")[1] : "",
+      payment_date: payment.payment_date || new Date().toISOString().split("T")[0],
     });
   };
 
@@ -1086,6 +1134,15 @@ export default function PaymentsPage() {
                 />
               </div>
               <div>
+                <label className="text-sm font-medium">Date</label>
+                <input
+                  type="date"
+                  value={editPaymentForm.payment_date}
+                  onChange={(e) => setEditPaymentForm({ ...editPaymentForm, payment_date: e.target.value })}
+                  className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm"
+                />
+              </div>
+              <div>
                 <label className="text-sm font-medium">Notes</label>
                 <input
                   value={editPaymentForm.notes}
@@ -1104,7 +1161,10 @@ export default function PaymentsPage() {
                 {saving ? "Updating..." : "Update Payment"}
               </button>
               <button
-                onClick={() => setEditingPaymentId(null)}
+                onClick={() => {
+                  setEditingPaymentId(null);
+                  setEditPaymentForm({ orderId: "", amount: 0, method: "Cash", type: "Initial Advance", reference: "", notes: "", payment_date: new Date().toISOString().split("T")[0] });
+                }}
                 className="flex-1 h-11 rounded-xl border border-[var(--border)] text-sm font-semibold"
               >
                 Cancel

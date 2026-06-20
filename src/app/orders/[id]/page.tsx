@@ -90,7 +90,8 @@ interface Payment {
   payment_method: string;
   payment_date: string;
   payment_type?: string | null;
-  notes: string;
+  reference_number?: string | null;
+  notes: string | null;
 }
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -109,6 +110,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showPostProdExpenseModal, setShowPostProdExpenseModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("");
   const [editingFinalBudget, setEditingFinalBudget] = useState(false);
@@ -150,6 +152,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     payment_date: new Date().toISOString().split("T")[0],
     notes: "",
   });
+
+  const resetPaymentForm = () => {
+    setEditingPaymentId(null);
+    setPaymentForm({
+      payment_type: "",
+      payment_method: "",
+      amount: 0,
+      payment_date: new Date().toISOString().split("T")[0],
+      notes: "",
+    });
+  };
 
   useEffect(() => {
     const fetchOrderData = async () => {
@@ -626,10 +639,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
       return;
     }
     try {
-      // Use resolvedParams.id to ensure we use the exact ID from URL that matched the order
       const orderId = resolvedParams.id;
-      
-      // Debug: Verify order exists in database before inserting payment
       const { data: verifyOrder, error: verifyError } = await supabase
         .from("orders")
         .select("id")
@@ -641,36 +651,76 @@ Thank you for choosing Aura Knot Photography! 📸`;
         alert("Error: Order not found in database. The order may not have been saved properly.");
         return;
       }
-      
-      const paymentNumber = await generatePaymentNumber();
-      const { error: insertError } = await supabase.from("payments").insert({
-        payment_number: paymentNumber,
-        order_id: orderId,
-        customer_id: order.customer_id,
-        amount: paymentForm.amount,
-        payment_type: paymentForm.payment_type,
-        payment_method: paymentForm.payment_method,
-        payment_date: paymentForm.payment_date,
-        notes: paymentForm.notes || null,
-      });
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        alert("Failed to save payment: " + insertError.message);
-        return;
-      }
-      const newTotalPaid = totalPayments + paymentForm.amount;
-      // Use final_budget if set, otherwise use total_amount
+
       const budgetForBalance = order.final_budget || order.total_amount;
+      let updatedPayments: Payment[] = [];
+      let newTotalPaid = totalPayments;
+
+      if (editingPaymentId) {
+        const existingPayment = payments.find((payment) => payment.id === editingPaymentId);
+        if (!existingPayment) {
+          alert("Payment not found for editing.");
+          return;
+        }
+        const { error: updateError } = await supabase
+          .from("payments")
+          .update({
+            amount: paymentForm.amount,
+            payment_type: paymentForm.payment_type,
+            payment_method: paymentForm.payment_method,
+            payment_date: paymentForm.payment_date,
+            notes: paymentForm.notes || null,
+          })
+          .eq("id", editingPaymentId);
+        if (updateError) {
+          console.error("Update error:", updateError);
+          alert("Failed to update payment: " + updateError.message);
+          return;
+        }
+        newTotalPaid = totalPayments - existingPayment.amount + paymentForm.amount;
+        updatedPayments = payments
+          .map((payment) =>
+            payment.id === editingPaymentId
+              ? {
+                  ...payment,
+                  amount: paymentForm.amount,
+                  payment_type: paymentForm.payment_type,
+                  payment_method: paymentForm.payment_method,
+                  payment_date: paymentForm.payment_date,
+                  notes: paymentForm.notes || null,
+                }
+              : payment
+          )
+          .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
+      } else {
+        const paymentNumber = await generatePaymentNumber();
+        const { data: insertedPayments, error: insertError } = await supabase.from("payments").insert({
+          payment_number: paymentNumber,
+          order_id: orderId,
+          customer_id: order.customer_id,
+          amount: paymentForm.amount,
+          payment_type: paymentForm.payment_type,
+          payment_method: paymentForm.payment_method,
+          payment_date: paymentForm.payment_date,
+          notes: paymentForm.notes || null,
+        }).select("*");
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          alert("Failed to save payment: " + insertError.message);
+          return;
+        }
+        newTotalPaid = totalPayments + paymentForm.amount;
+        updatedPayments = [...(insertedPayments as Payment[] || []), ...payments].sort((a, b) => b.payment_date.localeCompare(a.payment_date));
+      }
+
       const newBalance = budgetForBalance - newTotalPaid;
       await supabase.from("orders").update({
         amount_paid: newTotalPaid,
         balance_due: newBalance,
         payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
       }).eq("id", order.id);
-      const { data } = await supabase.from("payments").select("*").eq("order_id", order.id).order("payment_date", { ascending: false });
-      setPayments(data || []);
+      setPayments(updatedPayments);
       const { data: updatedOrder } = await supabase.from("orders").select("*").eq("id", order.id).single();
-      // Preserve final_budget from current state if database doesn't have the column yet
       if (updatedOrder) {
         setOrder({
           ...updatedOrder,
@@ -691,13 +741,12 @@ Thank you for choosing Aura Knot Photography! 📸`;
 
       await maybeSendPaymentAutomation(paymentForm.payment_type || "Other", whatsappMessage);
 
-      // Ask user if they want to send WhatsApp notification
-      if (order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
+      if (!editingPaymentId && order.customer_phone && confirm(`Payment saved successfully!\n\nWould you like to send a WhatsApp notification to ${order.customer_name}?`)) {
         sendWhatsAppNotification(order.customer_phone, whatsappMessage);
       }
 
       setShowPaymentModal(false);
-      setPaymentForm({ payment_type: "", payment_method: "", amount: 0, payment_date: new Date().toISOString().split("T")[0], notes: "" });
+      resetPaymentForm();
     } catch (error) {
       console.error("Error saving payment:", error);
     }
@@ -949,6 +998,51 @@ Thank you for choosing Aura Knot Photography! 📸`;
       console.error("Error deleting order:", error);
       setDeleting(false);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleOpenEditPayment = (payment: Payment) => {
+    setEditingPaymentId(payment.id);
+    setPaymentForm({
+      payment_type: payment.payment_type || "",
+      payment_method: payment.payment_method || "",
+      amount: payment.amount || 0,
+      payment_date: payment.payment_date || new Date().toISOString().split("T")[0],
+      notes: payment.notes || "",
+    });
+    setShowPaymentModal(true);
+  };
+
+  const handleDeletePayment = async (payment: Payment) => {
+    if (!supabase || !order) return;
+    if (!confirm(`Delete payment ${payment.payment_number}? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from("payments").delete().eq("id", payment.id);
+      if (error) {
+        alert(`Failed to delete payment. ${error.message}`);
+        return;
+      }
+      const newTotalPaid = Math.max(0, totalPayments - payment.amount);
+      const budgetForBalance = order.final_budget || order.total_amount;
+      const newBalance = budgetForBalance - newTotalPaid;
+      await supabase.from("orders").update({
+        amount_paid: newTotalPaid,
+        balance_due: newBalance,
+        payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
+      }).eq("id", order.id);
+      setPayments(payments.filter((entry) => entry.id !== payment.id));
+      setOrder({
+        ...order,
+        amount_paid: newTotalPaid,
+        balance_due: newBalance,
+        payment_status: newBalance <= 0 ? "Paid" : newTotalPaid > 0 ? "Partial" : "Pending",
+      });
+      if (editingPaymentId === payment.id) {
+        setShowPaymentModal(false);
+        resetPaymentForm();
+      }
+    } catch (error) {
+      console.error("Error deleting payment:", error);
     }
   };
 
@@ -1849,6 +1943,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
                       <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Method</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Notes</th>
                       <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Amount</th>
+                      <th className="text-center py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1861,12 +1956,22 @@ Thank you for choosing Aura Knot Photography! 📸`;
                         </td>
                         <td className="py-3 px-4 text-sm text-[var(--muted-foreground)]">{payment.notes || "—"}</td>
                         <td className="py-3 px-4 text-sm text-right font-medium text-green-600">+{formatCurrency(payment.amount)}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => handleOpenEditPayment(payment)} className="rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200">
+                              Edit
+                            </button>
+                            <button onClick={() => handleDeletePayment(payment)} className="rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200">
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-[var(--secondary)]">
-                      <td colSpan={4} className="py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Total Received</td>
+                      <td colSpan={5} className="py-3 px-4 text-sm font-semibold text-[var(--foreground)]">Total Received</td>
                       <td className="py-3 px-4 text-sm text-right font-bold text-green-600">+{formatCurrency(totalPayments)}</td>
                     </tr>
                   </tfoot>
@@ -2119,7 +2224,7 @@ Thank you for choosing Aura Knot Photography! 📸`;
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-lg rounded-2xl bg-[var(--card)] p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Record Payment</h3>
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">{editingPaymentId ? "Edit Payment" : "Record Payment"}</h3>
             <div className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
@@ -2162,14 +2267,14 @@ Thank you for choosing Aura Knot Photography! 📸`;
               <button
                 onClick={() => {
                   setShowPaymentModal(false);
-                  setPaymentForm({ payment_type: "", payment_method: "", amount: 0, payment_date: new Date().toISOString().split("T")[0], notes: "" });
+                  resetPaymentForm();
                 }}
                 className="h-10 px-4 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary)]"
               >
                 Cancel
               </button>
               <button onClick={handleSavePayment} className="h-10 px-4 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[var(--primary)]/90">
-                Record Payment
+                {editingPaymentId ? "Update Payment" : "Record Payment"}
               </button>
             </div>
           </div>
